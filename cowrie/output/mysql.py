@@ -6,12 +6,15 @@ MySQL output connector. Writes audit logs to MySQL database
 from __future__ import division, absolute_import
 
 import MySQLdb
+import json
+import subprocess
 
 from twisted.internet import defer
 from twisted.enterprise import adbapi
 from twisted.python import log
 
 import cowrie.core.output
+
 
 class ReconnectingConnectionPool(adbapi.ConnectionPool):
     """
