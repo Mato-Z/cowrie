@@ -193,7 +193,7 @@ class Output(cowrie.core.output.Output):
         """
 
         if entry["eventid"] == 'cowrie.session.connect':
-            self.createSessionWhenever(self, entry['session'], entry['src_ip'], self.sensor, entry['timestamp'])
+            self.createSessionWhenever(entry['session'], entry['src_ip'], self.sensor, entry['timestamp'])
         elif entry["eventid"] == 'cowrie.login.success':
             self.simpleQuery('INSERT INTO `auth` (`session`, `success`' + \
                 ', `username`, `password`, `timestamp`)' + \
