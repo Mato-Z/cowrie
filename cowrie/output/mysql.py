@@ -152,7 +152,7 @@ class Output(cowrie.core.output.Output):
     # This is separate since we can't return with a value
     @defer.inlineCallbacks
     def createSessionWhenever(self, sid, peerIP, hostIP, timestamp=None):
-        sensorname = self.getSensor() or hostIP
+        sensorname = hostIP
         r = yield self.db.runQuery(
             'SELECT `id` FROM `sensors` WHERE `ip` = %s', (sensorname,))
         if r:
