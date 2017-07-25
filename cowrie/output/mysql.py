@@ -83,6 +83,89 @@ class Output(cowrie.core.output.Output):
         self.db.close()
 
 
+############################
+
+    def createSession(self, peerIP, peerPort, hostIP, hostPort, timestamp, sessionId=None):
+        if sessionId == None:
+            sid = uuid.uuid4().hex
+        else:
+            sid = sessionId
+
+        self.createSessionWhenever(sid, peerIP, hostIP, timestamp)
+        return sid
+
+    def createASNForIP(self, sid, peerIP, sensorId, timestamp):
+        def addslashes(s):
+            l = ["\\", '"', "'", "\0", ]
+            for i in l:
+                if i in s:
+                    s = s.replace(i, '\\'+i)
+            return s
+
+        def reverseIP(address):
+            temp = address.split(".")
+            convertedAddress = str(temp[3]) +'.' + str(temp[2]) + '.' + str(temp[1]) +'.' + str(temp[0])
+            return convertedAddress
+
+        def onASNRecordTest(r):
+            if r:
+                createTheSession(sid, peerIP, sensorId, int(r[0][0]), timestamp)
+            else:
+               d = self.db.runQuery('INSERT INTO `asinfo` (`asnid`, `asn`, `rir`, `country`, `asname`) VALUES ("", %s, %s, %s, %s) ', (ASN, registry, country, isp))
+               d.addCallbacks(onASNRecordInsert, self.sqlerror) 
+
+        def onASNRecordInsert(r):
+            d = self.db.runQuery('SELECT `asnid` FROM `asinfo` WHERE `asn` = %s AND `rir` = %s AND `country` = %s AND `asname` = %s ', (ASN, registry, country, isp))
+            d.addCallbacks(onASNRecordReady, self.sqlerror)
+
+        def onASNRecordReady(r):
+            print r
+            createTheSession(sid, peerIP, sensorId, int(r[0][0]), timestamp)
+
+        def createTheSession(sid, peerIP, sensorId, asnid, timestamp):
+            self.simpleQuery(
+                'INSERT INTO `sessions` (`id`, `starttime`, `sensor`, `ip`, `asnid`)' + \
+                ' VALUES (%s, STR_TO_DATE(%s, %s), %s, %s, %s)',
+                (sid, timestamp, '%Y-%m-%dT%H:%i:%s.%fZ', sensorId, peerIP, asnid))
+
+        querycmd1 = reverseIP(peerIP) + '.origin.asn.cymru.com'
+        response1 = subprocess.Popen(['dig', '-t', 'TXT', querycmd1, '+short'], stdout=subprocess.PIPE).communicate()[0]
+        response1List = response1.split('|')
+        ASN = response1List[0].strip('" ')
+        querycmd2 = 'AS' + ASN + '.asn.cymru.com'
+        response2 = subprocess.Popen(['dig', '-t', 'TXT', querycmd2, '+short'], stdout=subprocess.PIPE).communicate()[0]
+        response2List = response2.split('|')
+        if len(response2List) < 4:
+            createTheSession(sid, peerIP, sensorId, 'NULL', timestamp)
+        else:
+            isp = addslashes(response2List[4].replace('"', ''))
+            network = addslashes(response1List[1].strip())
+            country = addslashes(response1List[2].strip())
+            registry = addslashes(response1List[3].strip())
+            isp = network + "-" + isp
+            d = self.db.runQuery('SELECT `asnid` FROM `asinfo` WHERE `asn` = %s AND `rir` = %s AND `country` = %s AND `asname` = %s ', (ASN, registry, country, isp))
+            d.addCallbacks(onASNRecordTest, self.sqlerror)
+
+    # This is separate since we can't return with a value
+    @defer.inlineCallbacks
+    def createSessionWhenever(self, sid, peerIP, hostIP, timestamp=None):
+        sensorname = self.getSensor() or hostIP
+        r = yield self.db.runQuery(
+            'SELECT `id` FROM `sensors` WHERE `ip` = %s', (sensorname,))
+        if r:
+            id = r[0][0]
+        else:
+            yield self.db.runQuery(
+                'INSERT INTO `sensors` (`ip`) VALUES (%s)', (sensorname,))
+            r = yield self.db.runQuery('SELECT LAST_INSERT_ID()')
+            id = int(r[0][0])
+
+        self.createASNForIP(sid, peerIP, id, timestamp)
+
+
+############################
+
+
     def sqlerror(self, error):
         """
         docstring here
@@ -107,21 +190,7 @@ class Output(cowrie.core.output.Output):
         """
 
         if entry["eventid"] == 'cowrie.session.connect':
-            r = yield self.db.runQuery(
-                "SELECT `id` FROM `sensors` WHERE `ip` = %s", (self.sensor,))
-            if r:
-                sensorid = r[0][0]
-            else:
-                yield self.db.runQuery(
-                    'INSERT INTO `sensors` (`ip`) VALUES (%s)', (self.sensor,))
-                r = yield self.db.runQuery('SELECT LAST_INSERT_ID()')
-                sensorid = int(r[0][0])
-            self.simpleQuery(
-                "INSERT INTO `sessions` (`id`, `starttime`, `sensor`, `ip`)"
-                +  " VALUES (%s, STR_TO_DATE(%s, %s), %s, %s)",
-                (entry["session"], entry["timestamp"], '%Y-%m-%dT%H:%i:%s.%fZ',
-                    sensorid, entry["src_ip"]))
-
+            self.createSessionWhenever(self, entry['session'], entry['src_ip'], self.sensor, entry['timestamp'])
         elif entry["eventid"] == 'cowrie.login.success':
             self.simpleQuery('INSERT INTO `auth` (`session`, `success`' + \
                 ', `username`, `password`, `timestamp`)' + \
