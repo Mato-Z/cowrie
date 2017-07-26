@@ -122,7 +122,6 @@ class Output(cowrie.core.output.Output):
             d.addCallbacks(onASNRecordReady, self.sqlerror)
 
         def onASNRecordReady(r):
-            print r
             createTheSession(sid, peerIP, sensorId, int(r[0][0]), timestamp)
 
         def createTheSession(sid, peerIP, sensorId, asnid, timestamp):
@@ -152,19 +151,25 @@ class Output(cowrie.core.output.Output):
     # This is separate since we can't return with a value
     @defer.inlineCallbacks
     def createSessionWhenever(self, sid, peerIP, hostIP, timestamp=None):
-        sensorname = hostIP
-        r = yield self.db.runQuery(
-            'SELECT `id` FROM `sensors` WHERE `ip` = %s', (sensorname,))
-        if r:
-            id = r[0][0]
-        else:
-            yield self.db.runQuery(
-                'INSERT INTO `sensors` (`ip`) VALUES (%s)', (sensorname,))
-            r = yield self.db.runQuery('SELECT LAST_INSERT_ID()')
+        def onSensorReady(r):
             id = int(r[0][0])
+            self.createASNForIP(sid, peerIP, id, timestamp)
 
-        self.createASNForIP(sid, peerIP, id, timestamp)
+        def onSensorInsert(r):
+            d = self.db.runQuery('SELECT LAST_INSERT_ID()')
+            d.addCallbacks(onSensorReady, self.sqlerror)
 
+        def onSensorSelect(r):   
+            if r:
+                onSensorReady(r)
+            else:
+                d = self.db.runQuery(
+                    'INSERT INTO `sensors` (`ip`) VALUES (%s)', (hostIP,))
+                d.addCallbacks(onSensorInsert, self.sqlerror)
+
+        d = self.db.runQuery(
+            'SELECT `id` FROM `sensors` WHERE `ip` = %s', (hostIP,))
+        d.addCallback(onSensorSelect, self.sqlerror)
 
 ############################
 
