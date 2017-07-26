@@ -163,16 +163,14 @@ class Output(cowrie.core.output.Output):
             d = self.db.runQuery('SELECT `asnid` FROM `asinfo` WHERE `asn` = %s AND `rir` = %s AND `country` = %s AND `asname` = %s ', (ASN, registry, country, isp))
             d.addCallbacks(onASNRecordTest, self.sqlerror)
 
-    # This is separate since we can't return with a value
-    @defer.inlineCallbacks
     def createSessionWhenever(self, sid, peerIP, hostIP, timestamp=None):
         def onSensorReady(r):
             id = int(r[0][0])
             self.createASNForIP(sid, peerIP, id, timestamp)
 
         def onSensorInsert(r):
-            r = self.db.runQuery('SELECT LAST_INSERT_ID()')
-            onSensorReady(r)
+            d = self.db.runQuery('SELECT LAST_INSERT_ID()')
+            d.addCallbacks(onSensorReady, self.seqlerror)
 
         def onSensorSelect(r):   
             if r:
