@@ -101,6 +101,12 @@ class Output(cowrie.core.output.Output):
         d = self.db.runQuery(sql, args)
         d.addErrback(self.sqlerror)
 
+    def simpleQueryWithCallback(self, callback, sql, args):
+        if self.debug:
+            log.msg("output_mysql: MySQL query: {} {}".format(sql, repr(args)))
+        d = self.db.runQuery(sql, args)
+        d.addCallbacks(callback, self.sqlerror)
+
 ############################
 
     def createSession(self, peerIP, peerPort, hostIP, hostPort, timestamp, sessionId=None):
@@ -129,12 +135,10 @@ class Output(cowrie.core.output.Output):
             if r:
                 createTheSession(sid, peerIP, sensorId, int(r[0][0]), timestamp)
             else:
-               d = self.db.runQuery('INSERT INTO `asinfo` (`asnid`, `asn`, `rir`, `country`, `asname`) VALUES ("", %s, %s, %s, %s) ', (ASN, registry, country, isp))
-               d.addCallbacks(onASNRecordInsert, self.sqlerror) 
+               self.simpleQueryWithCallback(onASNRecordInsert, 'INSERT INTO `asinfo` (`asnid`, `asn`, `rir`, `country`, `asname`) VALUES ("", %s, %s, %s, %s) ', (ASN, registry, country, isp))
 
         def onASNRecordInsert(r):
-            d = self.db.runQuery('SELECT `asnid` FROM `asinfo` WHERE `asn` = %s AND `rir` = %s AND `country` = %s AND `asname` = %s ', (ASN, registry, country, isp))
-            d.addCallbacks(onASNRecordReady, self.sqlerror)
+            self.simpleQueryWithCallback(onASNRecordReady, 'SELECT `asnid` FROM `asinfo` WHERE `asn` = %s AND `rir` = %s AND `country` = %s AND `asname` = %s ', (ASN, registry, country, isp))
 
         def onASNRecordReady(r):
             createTheSession(sid, peerIP, sensorId, int(r[0][0]), timestamp)
@@ -160,8 +164,7 @@ class Output(cowrie.core.output.Output):
             country = addslashes(response1List[2].strip())
             registry = addslashes(response1List[3].strip())
             isp = network + "-" + isp
-            d = self.db.runQuery('SELECT `asnid` FROM `asinfo` WHERE `asn` = %s AND `rir` = %s AND `country` = %s AND `asname` = %s ', (ASN, registry, country, isp))
-            d.addCallbacks(onASNRecordTest, self.sqlerror)
+            self.simpleQueryWithCallback(onASNRecordTest, 'SELECT `asnid` FROM `asinfo` WHERE `asn` = %s AND `rir` = %s AND `country` = %s AND `asname` = %s ', (ASN, registry, country, isp))
 
     def createSessionWhenever(self, sid, peerIP, hostIP, timestamp=None):
         def onSensorReady(r):
@@ -169,20 +172,17 @@ class Output(cowrie.core.output.Output):
             self.createASNForIP(sid, peerIP, id, timestamp)
 
         def onSensorInsert(r):
-            d = self.db.runQuery('SELECT LAST_INSERT_ID()')
-            d.addCallbacks(onSensorReady, self.seqlerror)
+            self.simpleQueryWithCallback(onSensorReady, 'SELECT LAST_INSERT_ID()')
 
         def onSensorSelect(r):   
             if r:
                 onSensorReady(r)
             else:
-                d = self.db.runQuery(
+                self.simpleQueryWithCallback(onSensorInsert,
                     'INSERT INTO `sensors` (`ip`) VALUES (%s)', (hostIP,))
-                d.addCallbacks(onSensorInsert, self.sqlerror)
 
-        d = self.db.runQuery(
+        self.simpleQueryWithCallback(onSensorSelect,
             'SELECT `id` FROM `sensors` WHERE `ip` = %s', (hostIP,))
-        d.addCallbacks(onSensorSelect, self.sqlerror)
 
 ############################
 
