@@ -169,7 +169,7 @@ class Output(cowrie.core.output.Output):
 
         d = self.db.runQuery(
             'SELECT `id` FROM `sensors` WHERE `ip` = %s', (hostIP,))
-        d.addCallback(onSensorSelect, self.sqlerror)
+        d.addCallbacks(onSensorSelect, self.sqlerror)
 
 ############################
 
