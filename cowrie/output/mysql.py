@@ -85,6 +85,21 @@ class Output(cowrie.core.output.Output):
         """
         self.db.close()
 
+    def sqlerror(self, error):
+        """
+        docstring here
+        """
+        log.err('output_mysql: MySQL Error: {}'.format(error.value))
+
+
+    def simpleQuery(self, sql, args):
+        """
+        Just run a deferred sql query, only care about errors
+        """
+        if self.debug:
+            log.msg("output_mysql: MySQL query: {} {}".format(sql, repr(args)))
+        d = self.db.runQuery(sql, args)
+        d.addErrback(self.sqlerror)
 
 ############################
 
@@ -156,8 +171,8 @@ class Output(cowrie.core.output.Output):
             self.createASNForIP(sid, peerIP, id, timestamp)
 
         def onSensorInsert(r):
-            d = self.db.runQuery('SELECT LAST_INSERT_ID()')
-            d.addCallbacks(onSensorReady, self.sqlerror)
+            r = self.db.runQuery('SELECT LAST_INSERT_ID()')
+            onSensorReady(r)
 
         def onSensorSelect(r):   
             if r:
@@ -172,24 +187,6 @@ class Output(cowrie.core.output.Output):
         d.addCallbacks(onSensorSelect, self.sqlerror)
 
 ############################
-
-
-    def sqlerror(self, error):
-        """
-        docstring here
-        """
-        log.err('output_mysql: MySQL Error: {}'.format(error.value))
-
-
-    def simpleQuery(self, sql, args):
-        """
-        Just run a deferred sql query, only care about errors
-        """
-        if self.debug:
-            log.msg("output_mysql: MySQL query: {} {}".format(sql, repr(args)))
-        d = self.db.runQuery(sql, args)
-        d.addErrback(self.sqlerror)
-
 
     @defer.inlineCallbacks
     def write(self, entry):
