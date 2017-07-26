@@ -258,7 +258,7 @@ class Output(cowrie.core.output.Output):
                 id = int(r[0][0])
 
             inDB = False
-            while !inDB:
+            while not inDB:
                 r = yield self.db.runQuery(
                     'SELECT `id` FROM `sessions` WHERE `id` = %s', \
                     (entry['session'],))
