@@ -59,6 +59,7 @@ class Output(cowrie.core.output.Output):
         """
         docstring here
         """
+        self.versions = {}
         if self.cfg.has_option('output_mysql', 'debug'):
             self.debug = self.cfg.getboolean('output_mysql', 'debug')
 
@@ -84,6 +85,7 @@ class Output(cowrie.core.output.Output):
         docstring here
         """
         self.db.close()
+        self.versions = {}
 
     def sqlerror(self, error):
         """
@@ -143,8 +145,17 @@ class Output(cowrie.core.output.Output):
         def onASNRecordReady(r):
             createTheSession(sid, peerIP, sensorId, int(r[0][0]), timestamp)
 
+        def onSessionCreated(r):
+            if self.versions.has_key(sid):
+                self.simpleQuery(
+                    'UPDATE `sessions` SET `client` = %s WHERE `id` = %s',
+                    (self.versions[sid], sid))
+                del self.versions[sid]
+            else:
+                self.versions[sid] = 1
+
         def createTheSession(sid, peerIP, sensorId, asnid, timestamp):
-            self.simpleQuery(
+            self.simpleQueryWithCallback(onSessionCreated,
                 'INSERT INTO `sessions` (`id`, `starttime`, `sensor`, `ip`, `asnid`)' + \
                 ' VALUES (%s, STR_TO_DATE(%s, %s), %s, %s, %s)',
                 (sid, timestamp, '%Y-%m-%dT%H:%i:%s.%fZ', sensorId, peerIP, asnid))
@@ -257,17 +268,13 @@ class Output(cowrie.core.output.Output):
                 r = yield self.db.runQuery('SELECT LAST_INSERT_ID()')
                 id = int(r[0][0])
 
-            inDB = False
-            while not inDB:
-                r = yield self.db.runQuery(
-                    'SELECT `id` FROM `sessions` WHERE `id` = %s', \
-                    (entry['session'],))
-                if r:
-                    inDB = True              
-
-            self.simpleQuery(
-                'UPDATE `sessions` SET `client` = %s WHERE `id` = %s',
-                (id, entry["session"]))
+            if not self.versions.has_key(entry['session']):
+                self.versions[entry['session']] = id
+            else:
+                del self.versions[entry['session']]
+                self.simpleQuery(
+                    'UPDATE `sessions` SET `client` = %s WHERE `id` = %s',
+                    (id, entry["session"]))
 
         elif entry["eventid"] == 'cowrie.client.size':
             self.simpleQuery(
