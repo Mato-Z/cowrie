@@ -20,7 +20,8 @@ from poster.streaminghttp import register_openers
 from twisted.internet import defer
 from twisted.enterprise import adbapi
 from twisted.python import log
-
+from twisted.internet.task import LoopingCall
+from twisted.internet import reactor
 import cowrie.core.output
 
 
