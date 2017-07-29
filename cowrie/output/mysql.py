@@ -106,6 +106,10 @@ class Output(cowrie.core.output.Output):
         self.db.close()
         self.versions = {}
 
+    def nowUnix(self):
+        """return the current UTC time as an UNIX timestamp"""
+        return int(time.time())
+
     def sqlerror(self, error):
         """
         docstring here
