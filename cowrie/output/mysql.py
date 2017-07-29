@@ -60,6 +60,7 @@ class Output(cowrie.core.output.Output):
 
     def __init__(self, cfg):
         self.cfg = cfg
+        self.apiKey = cfg.get('output_virustotal', 'api_key')
         cowrie.core.output.Output.__init__(self, cfg)
 
 
