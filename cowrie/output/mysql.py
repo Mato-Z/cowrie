@@ -249,10 +249,8 @@ class Output(cowrie.core.output.Output):
                     if "scans" in j.keys():
                         args = {'shasum': hash, 'url': url, 'permalink': j["permalink"], 'positives': j['positives'], 'total': j['total']}
                         args_scan = {'shasum': hash, 'permalink': j['permalink'], 'json': jsonString}
-                        mysql_logger = cowrie.dblog.mysql.DBLogger(self.cfg)
-                        mysql_logger.start(self.cfg)
-                        mysql_logger.handleVirustotal(args, args_scan)
-                        cursor.execute("""
+                        self.handleVirustotal(args, args_scan)
+                        self.simpleQuery("""
                             DELETE FROM vtwait WHERE scanid = ?""", (scanid,) )
 
             dbh.commit()
