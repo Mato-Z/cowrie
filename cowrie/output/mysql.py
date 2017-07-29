@@ -61,7 +61,7 @@ class Output(cowrie.core.output.Output):
 
     def __init__(self, cfg):
         self.cfg = cfg
-        self.apiKey = cfg.get('output_virustotal', 'api_key')
+        self.apiKey = cfg.get('output_mysql', 'api_key')
         cowrie.core.output.Output.__init__(self, cfg)
 
 
@@ -253,7 +253,7 @@ class Output(cowrie.core.output.Output):
             dbh.commit()
             cursor.close()
         except:
-            self.log.msg("Unexpected error: " + str(sys.exc_info()))
+            log.msg("Unexpected error: " + str(sys.exc_info()))
 
         return True
 
@@ -282,7 +282,7 @@ class Output(cowrie.core.output.Output):
             response = j["response_code"]
 
         if response == 1: # file known
-            self.log.msg("post_file(): file known")
+            log.msg("post_file(): file known")
             if "scans" in j.keys():
                 args = {'shasum': h.hexdigest(), 'url': aUrl, 'permalink': j['permalink'], 'positives' : j['positives'], 'total' : j['total']}
                 args_scan = {'shasum': h.hexdigest(), 'permalink': j['permalink'], 'json': jsonString}
@@ -290,12 +290,12 @@ class Output(cowrie.core.output.Output):
             else:
                 response = 2
         elif response == 0: # file not known
-            self.logMsg("post_file(): sending the file to VT...")
+            log.msg("post_file(): sending the file to VT...")
             register_openers()
             datagen, headers = multipart_encode({"file": open(aFileName, "rb")})
             request = urllib2.Request("https://www.virustotal.com/vtapi/v2/file/scan?apikey=" + self.apiKey, datagen, headers)
             jsonString = urllib2.urlopen(request).read()
-            self.logMsg("post_file(): response is " + jsonString)
+            log.msg("post_file(): response is " + jsonString)
             j = json.loads(jsonString)
             self.insert_wait(h.hexdigest(), aUrl, j["scan_id"])
 
