@@ -8,7 +8,15 @@ from __future__ import division, absolute_import
 import MySQLdb
 import json
 import subprocess
+import os
+import sys
+import urllib
+import urllib2
+import urlparse
+import hashlib
 
+from poster.encode import multipart_encode
+from poster.streaminghttp import register_openers
 from twisted.internet import defer
 from twisted.enterprise import adbapi
 from twisted.python import log
@@ -80,10 +88,14 @@ class Output(cowrie.core.output.Output):
             log.msg("output_mysql: Error %d: %s" % (e.args[0], e.args[1]))
 
 
+        self.lc = LoopingCall(self.check_wait)
+        self.lc.start(30)
+
     def stop(self):
         """
         docstring here
         """
+        self.lc.stop()
         self.db.close()
         self.versions = {}
 
@@ -195,6 +207,148 @@ class Output(cowrie.core.output.Output):
         self.simpleQueryWithCallback(onSensorSelect,
             'SELECT `id` FROM `sensors` WHERE `ip` = %s', (hostIP,))
 
+    def insert_wait(self, resource, url, scan_id):
+        p = self.cfg.get('honeypot', 'log_path') + '/backlogs.sqlite'
+        try:
+            dbh = sqlite3.connect(p)
+            cursor = dbh.cursor()
+            dt = datetime.datetime.now()
+            timestamp = dt.strftime("%Y-%m-%d %H:%M:%S")
+            cursor.execute("""
+                INSERT INTO vtwait (scanid, hash, url, time)
+                VALUES (?,?,?,?) """, (scan_id, resource, url, timestamp,))
+
+            dbh.commit()
+            cursor.close()
+        except:
+            log.msg("Unexpected error: " + str(sys.exc_info()))
+
+        return True
+
+    def check_wait(self):
+        p = self.cfg.get('honeypot', 'log_path') + '/backlogs.sqlite'
+        try:
+            dbh = sqlite3.connect(p)
+            cursor = dbh.cursor()
+            r = cursor.execute("""
+                SELECT scanid, hash, url, time FROM vtwait""")
+
+            for record in r:
+                scanid = format(record[0])
+                hash = format(record[1])
+                url = format(record[2])
+                j, jsonString = self.get_vt_report(scanid)
+                if (not j is None) and (j["response_code"] == 1):
+                    if "scans" in j.keys():
+                        args = {'shasum': hash, 'url': url, 'permalink': j["permalink"], 'positives': j['positives'], 'total': j['total']}
+                        args_scan = {'shasum': hash, 'permalink': j['permalink'], 'json': jsonString}
+                        mysql_logger = cowrie.dblog.mysql.DBLogger(self.cfg)
+                        mysql_logger.start(self.cfg)
+                        mysql_logger.handleVirustotal(args, args_scan)
+                        cursor.execute("""
+                            DELETE FROM vtwait WHERE scanid = ?""", (scanid,) )
+
+            dbh.commit()
+            cursor.close()
+        except:
+            self.log.msg("Unexpected error: " + str(sys.exc_info()))
+
+        return True
+
+    def get_vt_report(self, resource):
+        url = "https://www.virustotal.com/vtapi/v2/file/report"
+        parameters = {"resource": resource, "apikey": self.apiKey}
+        data = urllib.urlencode(parameters)
+        req = urllib2.Request(url, data)
+        response = urllib2.urlopen(req)
+        jsonString = response.read()
+        try:
+            j = json.loads(jsonString )
+        except:
+            j = None
+
+        return j, jsonString
+
+    def post_file(self, aFileName, aUrl=None):
+        file_to_send = open(aFileName, "rb").read()
+        h = hashlib.sha1()
+        h.update(file_to_send)
+        j, jsonString = self.get_vt_report(h.hexdigest())
+        if j is None:
+            response = -2
+        else:
+            response = j["response_code"]
+
+        if response == 1: # file known
+            self.log.msg("post_file(): file known")
+            if "scans" in j.keys():
+                args = {'shasum': h.hexdigest(), 'url': aUrl, 'permalink': j['permalink'], 'positives' : j['positives'], 'total' : j['total']}
+                args_scan = {'shasum': h.hexdigest(), 'permalink': j['permalink'], 'json': jsonString}
+                self.handleVirustotal(args, args_scan)
+            else:
+                response = 2
+        elif response == 0: # file not known
+            self.logMsg("post_file(): sending the file to VT...")
+            register_openers()
+            datagen, headers = multipart_encode({"file": open(aFileName, "rb")})
+            request = urllib2.Request("https://www.virustotal.com/vtapi/v2/file/scan?apikey=" + self.apiKey, datagen, headers)
+            jsonString = urllib2.urlopen(request).read()
+            self.logMsg("post_file(): response is " + jsonString)
+            j = json.loads(jsonString)
+            self.insert_wait(h.hexdigest(), aUrl, j["scan_id"])
+
+        return response
+
+    def make_comment(resource):
+        apikey = config().get('virustotal', 'apikey')
+        url = "https://www.virustotal.com/vtapi/v2/comments/put"
+        parameters = {"resource": resource,
+                   "comment": "captured by ssh honeypot",
+                   "apikey": apikey}
+        data = urllib.urlencode(parameters)
+        req = urllib2.Request(url, data)
+        response = urllib2.urlopen(req)
+        json = response.read()
+
+
+    def handleVirustotal(self, args, args2):
+        def insert_done(r):
+            self.handleVirustotalScan(args2)
+
+        def select_done(r):
+            if r:
+                id = r[0][0]
+            else:
+                d = self.db.runQuery('INSERT INTO `virustotals`' + \
+                    ' (`shasum`, `url`, `timestamp`, `permalink`, `positives`, `count`)' + \
+                    ' VALUES (%s, %s, FROM_UNIXTIME(%s), %s, %s, %s)',
+                    (args['shasum'], args['url'], self.nowUnix(), args['permalink'], args['positives'], args['total'],))
+                d.addCallbacks(insert_done, self.sqlerror)
+
+        d = self.db.runQuery('SELECT `id` FROM `virustotals` WHERE `permalink` = %s', (args['permalink'],))
+        d.addCallbacks(select_done, self.sqlerror)
+        
+    def handleVirustotalScan(self, args):
+        def insert_results(r):
+            scan_id = r[0][0]
+
+            jsonData = json.loads(args['json'])
+            scans = jsonData['scans']
+
+            for av, val in scans.items():
+                res = val['result']
+                # not detected = '' -> NULL
+                if res == '':
+                    res = None
+
+                self.simpleQuery('INSERT INTO `virustotalscans`' + \
+                    ' (`scan_id`, `scanner`, `result`)' + \
+                   ' VALUES (%s, %s, %s)',
+                   (scan_id, av, res, ))
+
+        d = self.db.runQuery('SELECT `id` FROM `virustotals` WHERE `permalink` = %s',  (args['permalink'],))
+        d.addCallbacks(insert_results, self.sqlerror)
+
 ############################
 
     @defer.inlineCallbacks
@@ -239,6 +393,7 @@ class Output(cowrie.core.output.Output):
                 ' VALUES (%s, STR_TO_DATE(%s, %s), %s, %s, %s)',
                 (entry["session"], entry["timestamp"], '%Y-%m-%dT%H:%i:%s.%fZ',
                 entry['url'], entry['outfile'], entry['shasum']))
+            self.post_file(entry["outfile"], entry["url"])
 
         elif entry["eventid"] == 'cowrie.session.file_upload':
             self.simpleQuery('INSERT INTO `downloads`' + \
@@ -246,6 +401,7 @@ class Output(cowrie.core.output.Output):
                 ' VALUES (%s, STR_TO_DATE(%s, %s), %s, %s)',
                 (entry["session"], entry["timestamp"], '%Y-%m-%dT%H:%i:%s.%fZ',
                 '', entry['outfile'], entry['shasum']))
+            self.post_file(entry["outfile"])
 
         elif entry["eventid"] == 'cowrie.session.input':
             self.simpleQuery('INSERT INTO `input`' + \
