@@ -254,7 +254,7 @@ class Output(cowrie.core.output.Output):
                         args = {'shasum': hash, 'url': url, 'permalink': j["permalink"], 'positives': j['positives'], 'total': j['total']}
                         args_scan = {'shasum': hash, 'permalink': j['permalink'], 'json': jsonString}
                         self.handleVirustotal(args, args_scan)
-                        self.simpleQuery("""
+                        cursor.execute("""
                             DELETE FROM vtwait WHERE scanid = ?""", (scanid,) )
 
             dbh.commit()
