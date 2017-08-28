@@ -191,7 +191,7 @@ class Output(cowrie.core.output.Output):
         response2 = subprocess.Popen(['dig', '-t', 'TXT', querycmd2, '+short'], stdout=subprocess.PIPE).communicate()[0]
         response2List = response2.split('|')
         if len(response2List) < 4:
-            createTheSession(sid, peerIP, sensorId, 'NULL', timestamp)
+            createTheSession(sid, peerIP, sensorId, '1', timestamp)
         else:
             isp = addslashes(response2List[4].replace('"', ''))
             network = addslashes(response1List[1].strip())
