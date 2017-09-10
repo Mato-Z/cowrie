@@ -183,12 +183,18 @@ class Output(cowrie.core.output.Output):
                 ' VALUES (%s, STR_TO_DATE(%s, %s), %s, %s, %s)',
                 (sid, timestamp, '%Y-%m-%dT%H:%i:%s.%fZ', sensorId, peerIP, asnid))
 
-        querycmd1 = reverseIP(peerIP) + '.origin.asn.cymru.com'
-        response1 = subprocess.Popen(['dig', '-t', 'TXT', querycmd1, '+short'], stdout=subprocess.PIPE).communicate()[0]
-        response1List = response1.split('|')
-        ASN = response1List[0].strip('" ')
-        querycmd2 = 'AS' + ASN + '.asn.cymru.com'
-        response2 = subprocess.Popen(['dig', '-t', 'TXT', querycmd2, '+short'], stdout=subprocess.PIPE).communicate()[0]
+        try:
+          querycmd1 = reverseIP(peerIP) + '.origin.asn.cymru.com'
+          response1 = subprocess.Popen(['dig', '-t', 'TXT', querycmd1, '+short'], stdout=subprocess.PIPE).communicate()[0]
+          response1List = response1.split('|')
+          ASN = response1List[0].strip('" ')
+          querycmd2 = 'AS' + ASN + '.asn.cymru.com'
+          response2 = subprocess.Popen(['dig', '-t', 'TXT', querycmd2, '+short'], stdout=subprocess.PIPE).communicate()[0]
+        except:
+          ASN = ""
+          response2 = ""
+          log.msg("dig process error: " + str(sys.exc_info()))
+
         response2List = response2.split('|')
         if len(response2List) < 4:
             createTheSession(sid, peerIP, sensorId, '1', timestamp)
