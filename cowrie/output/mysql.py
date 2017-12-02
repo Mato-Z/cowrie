@@ -335,9 +335,9 @@ class Output(cowrie.core.output.Output):
                 id = r[0][0]
             else:
                 d = self.db.runQuery('INSERT INTO `virustotals`' + \
-                    ' (`shasum`, `url`, `timestamp`, `permalink`, `positives`, `count`)' + \
+                    ' (`shasum`, `sha256`, `url`, `timestamp`, `permalink`, `positives`, `count`)' + \
                     ' VALUES (%s, %s, FROM_UNIXTIME(%s), %s, %s, %s)',
-                    (args['shasum'], args['url'], self.nowUnix(), args['permalink'], args['positives'], args['total'],))
+                    (args['shasum'], args['sha256'], args['url'], self.nowUnix(), args['permalink'], args['positives'], args['total'],))
                 d.addCallbacks(insert_done, self.sqlerror)
 
         d = self.db.runQuery('SELECT `id` FROM `virustotals` WHERE `permalink` = %s', (args['permalink'],))
