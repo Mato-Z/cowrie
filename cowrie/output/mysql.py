@@ -224,7 +224,7 @@ class Output(cowrie.core.output.Output):
         self.simpleQueryWithCallback(onSensorSelect,
             'SELECT `id` FROM `sensors` WHERE `ip` = %s', (hostIP,))
 
-    def insert_wait(self, resource, url, scan_id):
+    def insert_wait(self, resource, url, scan_id, sha256):
         p = self.cfg.get('honeypot', 'log_path') + '/backlogs.sqlite'
         try:
             dbh = sqlite3.connect(p)
@@ -232,8 +232,8 @@ class Output(cowrie.core.output.Output):
             dt = datetime.datetime.now()
             timestamp = dt.strftime("%Y-%m-%d %H:%M:%S")
             cursor.execute("""
-                INSERT INTO vtwait (scanid, hash, url, time)
-                VALUES (?,?,?,?) """, (scan_id, resource, url, timestamp,))
+                INSERT INTO vtwait (scanid, hash, url, time, sha256)
+                VALUES (?,?,?,?,?) """, (scan_id, resource, url, timestamp, sha256))
 
             dbh.commit()
             cursor.close()
@@ -254,10 +254,11 @@ class Output(cowrie.core.output.Output):
                 scanid = format(record[0])
                 hash = format(record[1])
                 url = format(record[2])
+		sha256 = format(record[3])
                 j, jsonString = self.get_vt_report(scanid)
                 if (not j is None) and (j["response_code"] == 1):
                     if "scans" in j.keys():
-                        args = {'shasum': hash, 'url': url, 'permalink': j["permalink"], 'positives': j['positives'], 'total': j['total']}
+                        args = {'shasum': hash, 'url': url, 'permalink': j["permalink"], 'positives': j['positives'], 'total': j['total'], 'sha256' : sha256}
                         args_scan = {'shasum': hash, 'permalink': j['permalink'], 'json': jsonString}
                         self.handleVirustotal(args, args_scan)
                         cursor.execute("""
@@ -288,6 +289,8 @@ class Output(cowrie.core.output.Output):
         file_to_send = open(aFileName, "rb").read()
         h = hashlib.sha1()
         h.update(file_to_send)
+	h256 = hashlib.sha256()
+	h256.update(file_to_send)
         j, jsonString = self.get_vt_report(h.hexdigest())
         if j is None:
             response = -2
@@ -297,7 +300,7 @@ class Output(cowrie.core.output.Output):
         if response == 1: # file known
             log.msg("post_file(): file known")
             if "scans" in j.keys():
-                args = {'shasum': h.hexdigest(), 'url': aUrl, 'permalink': j['permalink'], 'positives' : j['positives'], 'total' : j['total']}
+                args = {'shasum': h.hexdigest(), 'sha256' : h256.hexdigest(), 'url': aUrl, 'permalink': j['permalink'], 'positives' : j['positives'], 'total' : j['total']}
                 args_scan = {'shasum': h.hexdigest(), 'permalink': j['permalink'], 'json': jsonString}
                 self.handleVirustotal(args, args_scan)
             else:
@@ -310,7 +313,7 @@ class Output(cowrie.core.output.Output):
             jsonString = urllib2.urlopen(request).read()
             log.msg("post_file(): response is " + jsonString)
             j = json.loads(jsonString)
-            self.insert_wait(h.hexdigest(), aUrl, j["scan_id"])
+            self.insert_wait(h.hexdigest(), aUrl, j["scan_id"], h256.hexdigest())
 
         return response
 
@@ -336,7 +339,7 @@ class Output(cowrie.core.output.Output):
             else:
                 d = self.db.runQuery('INSERT INTO `virustotals`' + \
                     ' (`shasum`, `sha256`, `url`, `timestamp`, `permalink`, `positives`, `count`)' + \
-                    ' VALUES (%s, %s, FROM_UNIXTIME(%s), %s, %s, %s)',
+                    ' VALUES (%s, %s, %s, FROM_UNIXTIME(%s), %s, %s, %s)',
                     (args['shasum'], args['sha256'], args['url'], self.nowUnix(), args['permalink'], args['positives'], args['total'],))
                 d.addCallbacks(insert_done, self.sqlerror)
 
