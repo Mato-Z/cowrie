@@ -248,13 +248,13 @@ class Output(cowrie.core.output.Output):
             dbh = sqlite3.connect(p)
             cursor = dbh.cursor()
             r = cursor.execute("""
-                SELECT scanid, hash, url, time FROM vtwait""")
+                SELECT scanid, hash, url, time, sha256 FROM vtwait""")
 
             for record in r:
                 scanid = format(record[0])
                 hash = format(record[1])
                 url = format(record[2])
-		sha256 = format(record[3])
+		sha256 = format(record[4])
                 j, jsonString = self.get_vt_report(scanid)
                 if (not j is None) and (j["response_code"] == 1):
                     if "scans" in j.keys():
