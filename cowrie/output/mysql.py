@@ -259,7 +259,7 @@ class Output(cowrie.core.output.Output):
                 if (not j is None) and (j["response_code"] == 1):
                     if "scans" in j.keys():
                         args = {'shasum': hash, 'url': url, 'permalink': j["permalink"], 'positives': j['positives'], 'total': j['total'], 'sha256' : sha256}
-                        args_scan = {'shasum': hash, 'permalink': j['permalink'], 'json': jsonString}
+                        args_scan = {'shasum': hash, 'sha256' : sha256, 'permalink': j['permalink'], 'json': jsonString}
                         self.handleVirustotal(args, args_scan)
                         cursor.execute("""
                             DELETE FROM vtwait WHERE scanid = ?""", (scanid,) )
@@ -301,7 +301,7 @@ class Output(cowrie.core.output.Output):
             log.msg("post_file(): file known")
             if "scans" in j.keys():
                 args = {'shasum': h.hexdigest(), 'sha256' : h256.hexdigest(), 'url': aUrl, 'permalink': j['permalink'], 'positives' : j['positives'], 'total' : j['total']}
-                args_scan = {'shasum': h.hexdigest(), 'permalink': j['permalink'], 'json': jsonString}
+                args_scan = {'shasum': h.hexdigest(), 'sha256' : h256, 'permalink': j['permalink'], 'json': jsonString}
                 self.handleVirustotal(args, args_scan)
             else:
                 response = 2
