@@ -98,6 +98,7 @@ class Output(cowrie.core.output.Output):
 
         self.lc = LoopingCall(self.check_wait)
         self.lc.start(30)
+        self.versions = {}
 
     def stop(self):
         """
