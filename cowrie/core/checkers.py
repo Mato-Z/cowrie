@@ -22,6 +22,8 @@ from twisted.conch.ssh import keys
 from cowrie.core import credentials
 from cowrie.core import auth
 
+from cowrie.core.config import CONFIG
+
 @implementer(ICredentialsChecker)
 class HoneypotPublicKeyChecker(object):
     """
@@ -66,10 +68,6 @@ class HoneypotPasswordChecker(object):
     credentialInterfaces = (credentials.IUsernamePasswordIP,
         credentials.IPluggableAuthenticationModulesIP)
 
-    def __init__(self, cfg):
-        self.cfg = cfg
-
-
     def requestAvatarId(self, credentials):
         """
         """
@@ -108,8 +106,8 @@ class HoneypotPasswordChecker(object):
         authname = auth.UserDB
 
         # Is the auth_class defined in the config file?
-        if self.cfg.has_option('honeypot', 'auth_class'):
-            authclass = self.cfg.get('honeypot', 'auth_class')
+        if CONFIG.has_option('honeypot', 'auth_class'):
+            authclass = CONFIG.get('honeypot', 'auth_class')
             authmodule = "cowrie.core.auth"
 
             # Check if authclass exists in this module
@@ -119,18 +117,20 @@ class HoneypotPasswordChecker(object):
                 log.msg('auth_class: %s not found in %s' %
                     (authclass, authmodule))
 
-        theauth = authname(self.cfg)
+        theauth = authname()
 
         if theauth.checklogin(theusername, thepassword, ip):
             log.msg(eventid='cowrie.login.success',
                     format='login attempt [%(username)s/%(password)s] succeeded',
-                    username=theusername.encode('string-escape'),
-                    password=thepassword.encode('string-escape'))
+                    username=theusername, password=thepassword)
+                    #username=theusername.encode('string-escape'),
+                    #password=thepassword.encode('string-escape'))
             return True
         else:
             log.msg(eventid='cowrie.login.failed',
                     format='login attempt [%(username)s/%(password)s] failed',
-                    username=theusername.encode('string-escape'),
-                    password=thepassword.encode('string-escape'))
+                    username=theusername, password=thepassword)
+                    #username=theusername.encode('string-escape'),
+                    #password=thepassword.encode('string-escape'))
             return False
 

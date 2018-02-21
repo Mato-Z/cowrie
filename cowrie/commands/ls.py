@@ -7,9 +7,9 @@ import stat
 import getopt
 import time
 
-from cowrie.core.honeypot import HoneyPotCommand
-from cowrie.core.fs import *
-from cowrie.core.pwd import Passwd, Group
+from cowrie.shell.honeypot import HoneyPotCommand
+from cowrie.shell.fs import *
+from cowrie.shell.pwd import Passwd, Group
 
 commands = {}
 
@@ -21,7 +21,7 @@ class command_ls(HoneyPotCommand):
         """
         """
         try:
-            return Passwd(self.protocol.cfg).getpwuid(uid)["pw_name"]
+            return Passwd().getpwuid(uid)["pw_name"]
         except:
             return str(uid)
 
@@ -30,7 +30,7 @@ class command_ls(HoneyPotCommand):
         """
         """
         try:
-            return Group(self.protocol.cfg).getgrgid(gid)["gr_name"]
+            return Group().getgrgid(gid)["gr_name"]
         except:
             return str(gid)
 

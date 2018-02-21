@@ -11,10 +11,11 @@ from __future__ import division, absolute_import
 import getopt
 import copy
 from os import path
-from cowrie.core.honeypot import HoneyPotCommand
-from cowrie.core.fs import *
+from cowrie.shell.honeypot import HoneyPotCommand
+from cowrie.shell.fs import *
 
 commands = {}
+
 
 class command_cat(HoneyPotCommand):
     """
@@ -44,6 +45,7 @@ class command_cat(HoneyPotCommand):
                 input=line,
                 format='INPUT (%(realm)s): %(input)s')
 
+        self.write(line)
 
     def handle_CTRL_D(self):
         self.exit()

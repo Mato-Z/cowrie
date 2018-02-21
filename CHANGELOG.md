@@ -1,3 +1,7 @@
+* 2018-02-06 cowrie.log now uses same rotation mechanism as cowrie.json. One file per day, rather than the default 1MB per file.
+* 2017-12-13 Default umask for logs is now 0007. This means group members can access.
+* 2017-10-24 Can store uploaded and downloaded artifacts to S3
+* 2017-09-23 First proxy implementation for exec commands only
 * 2017-07-03 Cuckoo v2 integration
 * 2017-05-16 now combines config files: cowrie.cfg.dist and cowrie.cfg in this order
 * 2017-05-09 start.sh and stop.sh have been replace by bin/cowrie start|stop

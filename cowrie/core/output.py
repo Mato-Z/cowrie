@@ -37,6 +37,10 @@ import datetime
 import re
 import copy
 import socket
+import time
+
+from cowrie.core.config import CONFIG
+
 
 # Events:
 #  cowrie.client.fingerprint
@@ -45,7 +49,7 @@ import socket
 #  cowrie.client.version
 #  cowrie.command.input
 #  cowrie.command.failed
-#  cowrie.command.success
+#  cowrie.command.success (deprecated)
 #  cowrie.direct-tcpip.data
 #  cowrie.direct-tcpip.request
 #  cowrie.log.closed
@@ -57,17 +61,37 @@ import socket
 #  cowrie.session.file_download
 #  cowrie.session.file_upload
 
+"""
+The time is available in two formats in each event, as key 'time'
+in epoch format and in key 'timestamp' as a ISO compliant string
+in UTC.
+"""
+
+
+def convert(input):
+    """
+    This converts a nested dictionary with bytes in it to string
+    """
+    if isinstance(input, dict):
+        return {convert(key): convert(value) for key, value in list(input.items())}
+    elif isinstance(input, list):
+        return [convert(element) for element in input]
+    elif isinstance(input, bytes):
+        return input.decode('utf-8')
+    else:
+        return input
+
 
 class Output(object):
     """
-    This is the abstract base class intended to be inherited by cowrie output plugins
-    Plugins require the mandatory methods: stop, start and write
+    This is the abstract base class intended to be inherited by
+    cowrie output plugins. Plugins require the mandatory
+    methods: stop, start and write
     """
 
     __metaclass__ = abc.ABCMeta
 
-    def __init__(self, cfg):
-        self.cfg = cfg
+    def __init__(self):
         self.sessions = {}
         self.ips = {}
         # Need these for each individual transport, or else the session numbers overlap
@@ -76,7 +100,7 @@ class Output(object):
         self.telnetRegex = re.compile(
             '.*TelnetTransport,([0-9]+),[0-9a-f:.]+$')
         try:
-            self.sensor = self.cfg.get('honeypot', 'sensor_name')
+            self.sensor = CONFIG.get('honeypot', 'sensor_name')
         except:
             self.sensor = socket.gethostname()
 
@@ -129,16 +153,13 @@ class Output(object):
         if not 'eventid' in event:
             return
 
-        ev = copy.copy(event)
-
+        ev = convert(event)
         ev['sensor'] = self.sensor
 
         # Add ISO timestamp and sensor data
         if not 'time' in ev:
-            ev['timestamp'] = datetime.datetime.utcnow().isoformat() + 'Z'
-        else:
-            ev['timestamp'] = datetime.datetime.utcfromtimestamp(ev['time']).isoformat() + 'Z'
-            del ev['time']
+            ev['time'] = time.time()
+        ev['timestamp'] = datetime.datetime.utcfromtimestamp(ev['time']).isoformat() + 'Z'
 
         if 'format' in ev and (not 'message' in ev or ev['message'] == () ):
             try:

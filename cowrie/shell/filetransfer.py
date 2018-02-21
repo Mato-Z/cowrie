@@ -13,12 +13,14 @@ from zope.interface import implementer
 
 import twisted
 from twisted.python import log
+from twisted.python.compat import nativeString
 from twisted.conch.interfaces import ISFTPFile, ISFTPServer
 from twisted.conch.ssh import filetransfer
 from twisted.conch.ssh.filetransfer import FXF_READ, FXF_WRITE, FXF_APPEND, FXF_CREAT, FXF_TRUNC, FXF_EXCL
 import twisted.conch.ls
 
-import cowrie.core.pwd as pwd
+import cowrie.shell.pwd as pwd
+from cowrie.core.config import CONFIG
 
 
 @implementer(ISFTPFile)
@@ -33,9 +35,7 @@ class CowrieSFTPFile(object):
         self.bytesReceived = 0
 
         try:
-            self.bytesReceivedLimit = int(
-                self.sftpserver.avatar.server.cfg.get('honeypot',
-                                                      'download_limit_size'))
+            self.bytesReceivedLimit = CONFIG.getint('honeypot', 'download_limit_size')
         except:
             self.bytesReceivedLimit = 0
 
@@ -136,24 +136,24 @@ class CowrieSFTPDirectory(object):
             pdir = "/" + "/".join(directory[:-1])
             s1 = self.server.fs.lstat(pdir)
             s = self.server.fs.lstat(pdir)
-            s1.st_uid = pwd.Passwd(self.server.avatar.cfg).getpwuid(s.st_uid)["pw_name"]
-            s1.st_gid = pwd.Group(self.server.avatar.cfg).getgrgid(s.st_gid)["gr_name"]
+            s1.st_uid = pwd.Passwd().getpwuid(s.st_uid)["pw_name"]
+            s1.st_gid = pwd.Group().getgrgid(s.st_gid)["gr_name"]
             longname = twisted.conch.ls.lsLine(f, s1)
             attrs = self.server._getAttrs(s)
             return(f, longname, attrs)
         elif f == ".":
             s1 = self.server.fs.lstat(self.dir)
             s = self.server.fs.lstat(self.dir)
-            s1.st_uid = pwd.Passwd(self.server.avatar.cfg).getpwuid(s.st_uid)["pw_name"]
-            s1.st_gid = pwd.Group(self.server.avatar.cfg).getgrgid(s.st_gid)["gr_name"]
+            s1.st_uid = pwd.Passwd().getpwuid(s.st_uid)["pw_name"]
+            s1.st_gid = pwd.Group().getgrgid(s.st_gid)["gr_name"]
             longname = twisted.conch.ls.lsLine(f, s1)
             attrs = self.server._getAttrs(s)
             return(f, longname, attrs)
         else:
             s = self.server.fs.lstat(os.path.join(self.dir, f))
             s2 = self.server.fs.lstat(os.path.join(self.dir, f))
-            s2.st_uid = pwd.Passwd(self.server.avatar.cfg).getpwuid(s.st_uid)["pw_name"]
-            s2.st_gid = pwd.Group(self.server.avatar.cfg).getgrgid(s.st_gid)["gr_name"]
+            s2.st_uid = pwd.Passwd().getpwuid(s.st_uid)["pw_name"]
+            s2.st_gid = pwd.Group().getgrgid(s.st_gid)["gr_name"]
             longname = twisted.conch.ls.lsLine(f, s2)
             attrs = self.server._getAttrs(s)
             return (f, longname, attrs)
@@ -172,6 +172,7 @@ class SFTPServerForCowrieUser(object):
 
     def __init__(self, avatar):
         self.avatar = avatar
+        self.avatar.server.initFileSystem()
         self.fs = self.avatar.server.fs
 
 
@@ -179,7 +180,8 @@ class SFTPServerForCowrieUser(object):
         """
         """
         home = self.avatar.home
-        return os.path.abspath(os.path.join(home, path))
+        return os.path.abspath(os.path.join(nativeString(home),
+          nativeString(path)))
 
 
     def _setAttrs(self, path, attrs):

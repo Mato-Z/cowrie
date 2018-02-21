@@ -7,8 +7,9 @@ from csirtgsdk.client import Client
 from datetime import datetime
 import logging
 import os
+from twisted.python import log
 
-logger = logging.getLogger(__name__)
+from cowrie.core.config import CONFIG
 
 USERNAME = os.environ.get('CSIRTG_USER')
 FEED = os.environ.get('CSIRTG_FEED')
@@ -17,17 +18,17 @@ DESCRIPTION = os.environ.get('CSIRTG_DESCRIPTION', 'random scanning activity')
 
 
 class Output(cowrie.core.output.Output):
-    def __init__(self, cfg):
-        cowrie.core.output.Output.__init__(self, cfg)
-        self.user = cfg.get('output_csirtg', 'username') or USERNAME
-        self.feed = cfg.get('output_csirtg', 'feed') or FEED
-        self.token = cfg.get('output_csirtg', 'token') or TOKEN
+    def __init__(self):
+        self.user = CONFIG.get('output_csirtg', 'username') or USERNAME
+        self.feed = CONFIG.get('output_csirtg', 'feed') or FEED
+        self.token = CONFIG.get('output_csirtg', 'token') or TOKEN
         try:
-            self.description = cfg.get('output_csirtg', 'description')
+            self.description = CONFIG.get('output_csirtg', 'description')
         except Exception:
             self.description = DESCRIPTION
         self.context = {}
         self.client = Client(token=self.token)
+        cowrie.core.output.Output.__init__(self)
 
     def start(self,):
         pass
@@ -42,20 +43,17 @@ class Output(cowrie.core.output.Output):
         system = e['system']
 
         if system not in ['cowrie.ssh.factory.CowrieSSHFactory', 'cowrie.telnet.transport.HoneyPotTelnetFactory']:
-            logger.debug('skipping {}'.format(system))
             return
 
         today = str(datetime.now().date())
 
         if not self.context.get(today):
-            logger.debug('resetting context for %s' % today)
             self.context = {}
             self.context[today] = set()
 
         key = ','.join([peerIP, system])
 
         if key in self.context[today]:
-            logger.debug('skipping {}'.format(key))
             return
 
         self.context[today].add(key)
@@ -79,5 +77,5 @@ class Output(cowrie.core.output.Output):
         }
 
         ret = Indicator(self.client, i).submit()
-        logger.info('logged to csirtg %s ' % ret['indicator']['location'])
+        log.msg('logged to csirtg %s ' % ret['location'])
 

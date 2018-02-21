@@ -36,8 +36,10 @@ import time
 
 from twisted.python import log
 
-from cowrie.core.honeypot import HoneyPotCommand
-from cowrie.core import fs
+from cowrie.shell.honeypot import HoneyPotCommand
+from cowrie.shell import fs
+
+from cowrie.core.config import CONFIG
 
 commands = {}
 
@@ -57,12 +59,12 @@ class command_scp(HoneyPotCommand):
     def start(self):
         """
         """
-        self.download_path = self.protocol.cfg.get('honeypot', 'download_path')
+        self.download_path = CONFIG.get('honeypot', 'download_path')
 
         try:
-           self.download_path_uniq = self.protocol.cfg.get('honeypot', 'download_path_uniq')
+           self.download_path_uniq = CONFIG.get('honeypot', 'download_path_uniq')
         except:
-           self.download_path_uniq = self.protocol.cfg.get('honeypot', 'download_path')
+           self.download_path_uniq = CONFIG.get('honeypot', 'download_path')
 
         try:
             optlist, args = getopt.getopt(self.args, 'tdv:')

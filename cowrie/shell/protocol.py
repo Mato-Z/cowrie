@@ -20,8 +20,10 @@ from twisted.protocols.policies import TimeoutMixin
 from twisted.conch import recvline
 from twisted.conch.insults import insults
 
-from cowrie.core import honeypot
+from cowrie.shell import honeypot
 from cowrie.core import utils
+
+from cowrie.core.config import CONFIG
 
 class HoneyPotBaseProtocol(insults.TerminalProtocol, TimeoutMixin):
     """
@@ -31,7 +33,6 @@ class HoneyPotBaseProtocol(insults.TerminalProtocol, TimeoutMixin):
     def __init__(self, avatar):
         self.user = avatar
         self.environ = avatar.environ
-        self.cfg = self.user.cfg
         self.hostname = avatar.server.hostname
         self.fs = avatar.server.fs
         self.pp = None
@@ -90,19 +91,19 @@ class HoneyPotBaseProtocol(insults.TerminalProtocol, TimeoutMixin):
         self.logintime = time.time()
 
         try:
-            timeout = self.cfg.getint('honeypot', 'interactive_timeout')
+            timeout = CONFIG.getint('honeypot', 'interactive_timeout')
         except:
             timeout = 180
         self.setTimeout(timeout)
 
         # Source IP of client in user visible reports (can be fake or real)
         try:
-            self.clientIP = self.cfg.get('honeypot', 'fake_addr')
+            self.clientIP = CONFIG.get('honeypot', 'fake_addr')
         except:
             self.clientIP = self.realClientIP
 
-        if self.cfg.has_option('honeypot', 'internet_facing_ip'):
-            self.kippoIP = self.cfg.get('honeypot', 'internet_facing_ip')
+        if CONFIG.has_option('honeypot', 'internet_facing_ip'):
+            self.kippoIP = CONFIG.get('honeypot', 'internet_facing_ip')
         else:
             try:
                 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -122,15 +123,6 @@ class HoneyPotBaseProtocol(insults.TerminalProtocol, TimeoutMixin):
         self.terminal.transport.processEnded(ret)
 
 
-    def eofReceived(self):
-        """
-        this should probably not go through ctrl-d, but use processprotocol to close stdin
-        """
-        log.msg("received eof, sending ctrl-d to command")
-        if len(self.cmdstack):
-            self.cmdstack[-1].handle_CTRL_D()
-
-
     def connectionLost(self, reason):
         """
         Called when the connection is shut down.
@@ -144,7 +136,6 @@ class HoneyPotBaseProtocol(insults.TerminalProtocol, TimeoutMixin):
         del self.commands
         self.fs = None
         self.pp = None
-        self.cfg = None
         self.user = None
         self.environ = None
         #log.msg("honeypot terminal protocol connection lost {}".format(reason))
@@ -181,7 +172,7 @@ class HoneyPotBaseProtocol(insults.TerminalProtocol, TimeoutMixin):
                     break
 
         txt = os.path.normpath('%s/%s' % \
-            (self.cfg.get('honeypot', 'txtcmds_path'), path))
+            (CONFIG.get('honeypot', 'txtcmds_path'), path))
         if os.path.exists(txt) and os.path.isfile(txt):
             return self.txtcmd(txt)
 
@@ -209,12 +200,7 @@ class HoneyPotBaseProtocol(insults.TerminalProtocol, TimeoutMixin):
         obj.set_input_data(pp.input_data)
         self.cmdstack.append(obj)
         obj.start()
-        if hasattr(obj, 'safeoutfile'):
-            if obj.safeoutfile:
-                if hasattr(obj, 'outfile'):
-                    self.terminal.redirFiles.add((obj.safeoutfile, obj.outfile))
-                else:
-                    self.terminal.redirFiles.add((obj.safeoutfile, ''))
+
         if self.pp:
             self.pp.outConnectionLost()
 
@@ -229,9 +215,20 @@ class HoneyPotBaseProtocol(insults.TerminalProtocol, TimeoutMixin):
         #    pt.factory.starttime = reset
         return r
 
+
     def getClientVersion(self):
         pt = self.getProtoTransport()
         return pt.otherVersionString
+
+
+    def eofReceived(self):
+        # Shell received EOF, nicely exit
+        """
+        TODO: this should probably not go through transport, but use processprotocol to close stdin
+        """
+        ret = failure.Failure(error.ProcessTerminated(exitCode=0))
+        self.terminal.transport.processEnded(ret)
+
 
 
 class HoneyPotExecProtocol(HoneyPotBaseProtocol):
@@ -251,6 +248,14 @@ class HoneyPotExecProtocol(HoneyPotBaseProtocol):
         self.cmdstack = [honeypot.HoneyPotShell(self, interactive=False)]
         self.cmdstack[0].lineReceived(self.execcmd)
 
+
+    def eofReceived(self):
+        """
+        Received EOF, run command to finish and then exit
+        """
+        log.msg("received eof, sending ctrl-d to command")
+        if len(self.cmdstack):
+            self.cmdstack[-1].handle_CTRL_D()
 
 
 class HoneyPotInteractiveProtocol(HoneyPotBaseProtocol, recvline.HistoricRecvLine):
@@ -317,7 +322,7 @@ class HoneyPotInteractiveProtocol(HoneyPotBaseProtocol, recvline.HistoricRecvLin
         endtime = time.strftime('%H:%M',
             time.localtime(time.time()))
         duration = utils.durationHuman(time.time() - self.logintime)
-        with open( '%s/lastlog.txt' % (self.cfg.get('honeypot',
+        with open( '%s/lastlog.txt' % (CONFIG.get('honeypot',
             'log_path'),), 'a') as f:
             f.write('root\tpts/0\t%s\t%s - %s (%s)\n' % \
                 (self.clientIP, starttime, endtime, duration))
@@ -365,7 +370,7 @@ class HoneyPotInteractiveProtocol(HoneyPotBaseProtocol, recvline.HistoricRecvLin
         """
         if len(self.cmdstack) == 1:
             if self.lineBuffer:
-                self.historyLines.append(''.join(self.lineBuffer))
+                self.historyLines.append(b''.join(self.lineBuffer))
             self.historyPosition = len(self.historyLines)
         return recvline.RecvLine.handle_RETURN(self)
 

@@ -7,15 +7,15 @@ import pymongo
 from twisted.python import log
 
 import cowrie.core.output
+from cowrie.core.config import CONFIG
 
 
 class Output(cowrie.core.output.Output):
     """
     """
 
-    def __init__(self, cfg):
-        self.cfg = cfg
-        cowrie.core.output.Output.__init__(self, cfg)
+    def __init__(self):
+        cowrie.core.output.Output.__init__(self)
 
     def insert_one(self, collection, event):
         try:
@@ -34,8 +34,8 @@ class Output(cowrie.core.output.Output):
     def start(self):
         """
         """
-        db_addr = self.cfg.get('output_mongodb', 'connection_string')
-        db_name = self.cfg.get('output_mongodb', 'database')
+        db_addr = CONFIG.get('output_mongodb', 'connection_string')
+        db_name = CONFIG.get('output_mongodb', 'database')
 
         try:
             self.mongo_client = pymongo.MongoClient(db_addr)
@@ -51,7 +51,7 @@ class Output(cowrie.core.output.Output):
             self.col_ttylog = self.mongo_db['ttylog']
             self.col_keyfingerprints = self.mongo_db['keyfingerprints']
             self.col_event = self.mongo_db['event']
-        except Exception, e:
+        except Exception as e:
             log.msg('output_mongodb: Error: %s' % str(e))
 
 
@@ -90,7 +90,7 @@ class Output(cowrie.core.output.Output):
         elif eventid in ['cowrie.login.success', 'cowrie.login.failed']:
             self.insert_one(self.col_auth, entry)
 
-        elif eventid in ['cowrie.command.success', 'cowrie.command.failed']:
+        elif eventid in ['cowrie.command.input', 'cowrie.command.failed']:
             self.insert_one(self.col_input, entry)
 
         elif eventid == 'cowrie.session.file_download':

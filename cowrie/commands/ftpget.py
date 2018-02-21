@@ -8,12 +8,15 @@ import re
 import time
 import getopt
 import hashlib
+import socket
 from ftplib import FTP
 
 from twisted.python import log
 
-from cowrie.core.honeypot import HoneyPotCommand
-from cowrie.core.fs import *
+from cowrie.shell.honeypot import HoneyPotCommand
+from cowrie.shell.fs import *
+
+from cowrie.core.config import CONFIG
 
 commands = {}
 
@@ -86,9 +89,19 @@ Download a file via FTP
             self.exit()
             return
 
-        cfg = self.protocol.cfg
         url = 'ftp://%s/%s' % (self.host, self.remote_path)
-        self.download_path = cfg.get('honeypot', 'download_path')
+        self.download_path = CONFIG.get('honeypot', 'download_path')
+        
+        self.url_log = 'ftp://'
+        if self.username:
+            self.url_log = '{}{}'.format(self.url_log, self.username)
+            if self.password:
+                self.url_log = '{}:{}'.format(self.url_log, self.password)
+            self.url_log = '{}@'.format(self.url_log)
+        self.url_log = '{}{}'.format(self.url_log, self.host)
+        if self.port != 21:
+            self.url_log = '{}:{}'.format(self.url_log, self.port)
+        self.url_log = '{}/{}'.format(self.url_log, self.remote_path)
 
         tmp_fname = '%s_%s_%s_%s' % \
                     (time.strftime('%Y%m%d%H%M%S'),
@@ -100,6 +113,9 @@ Download a file via FTP
         result = self.ftp_download(self.safeoutfile)
 
         if not result:
+            self.protocol.logDispatch(eventid='cowrie.session.file_download.failed',
+                                      format='Attempt to download file(s) from URL (%(url)s) failed',
+                                      url=self.url_log)
             self.safeoutfile = None
             self.exit()
             return
@@ -122,7 +138,7 @@ Download a file via FTP
 
         self.protocol.logDispatch(eventid='cowrie.session.file_download',
                                   format='Downloaded URL (%(url)s) with SHA-256 %(shasum)s to %(outfile)s',
-                                  url=url,
+                                  url=self.url_log,
                                   outfile=hash_path,
                                   shasum=shasum)
 
@@ -169,7 +185,10 @@ Download a file via FTP
         except Exception as e:
             log.msg('FTP login failed: user=%s, passwd=%s, err=%s' % (self.username, self.password, str(e)))
             self.write('ftpget: unexpected server response to USER: %s\n' % str(e))
-            ftp.quit()
+            try:
+                ftp.quit()
+            except socket.timeout:
+                pass
             return False
 
         # download
@@ -185,7 +204,10 @@ Download a file via FTP
         except Exception as e:
             log.msg('FTP retrieval failed: %s' % str(e))
             self.write('ftpget: unexpected server response to USER: %s\n' % str(e))
-            ftp.quit()
+            try:
+                ftp.quit()
+            except socket.timeout:
+                pass
             return False
 
         # quit
@@ -193,7 +215,11 @@ Download a file via FTP
             self.write('ftpget: cmd (null) (null)\n')
             self.write('ftpget: cmd QUIT (null)\n')
 
-        ftp.quit()
+        try:
+            ftp.quit()
+        except socket.timeout:
+            pass
+        
         return True
 
 

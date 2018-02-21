@@ -7,6 +7,11 @@ This module contains ...
 
 from __future__ import division, absolute_import
 
+try:
+    import cPickle as pickle
+except:
+    import pickle
+
 import os
 import time
 import fnmatch
@@ -16,6 +21,10 @@ import stat
 import errno
 
 from twisted.python import log
+
+from cowrie.core.config import CONFIG
+
+PICKLE = pickle.load(open(CONFIG.get('honeypot', 'filesystem_file'), 'rb'))
 
 A_NAME, \
     A_TYPE, \
@@ -56,9 +65,8 @@ class HoneyPotFilesystem(object):
     """
     """
 
-    def __init__(self, fs, cfg):
+    def __init__(self, fs):
         self.fs = fs
-        self.cfg = cfg
 
         # Keep track of open file descriptors
         self.tempfiles = {}
@@ -69,7 +77,7 @@ class HoneyPotFilesystem(object):
 
         # Get the honeyfs path from the config file and explore it for file
         # contents:
-        self.init_honeyfs(self.cfg.get('honeypot', 'contents_path'))
+        self.init_honeyfs(CONFIG.get('honeypot', 'contents_path'))
 
 
     def init_honeyfs(self, honeyfs_path):
@@ -221,7 +229,7 @@ class HoneyPotFilesystem(object):
                             return False
                     else:
                         p = x
-            cwd = '/'.join((cwd, piece))
+            # cwd = '/'.join((cwd, piece))
         return p
 
 
@@ -350,7 +358,7 @@ class HoneyPotFilesystem(object):
             # strip executable bit
             hostmode = mode & ~(111)
             hostfile = '%s/%s_sftp_%s' % \
-                       (self.cfg.get('honeypot', 'download_path'),
+                       (CONFIG.get('honeypot', 'download_path'),
                     time.strftime('%Y%m%d-%H%M%S'),
                     re.sub('[^A-Za-z0-9]', '_', filename))
             #log.msg("fs.open file for writing, saving to %s" % safeoutfile)
@@ -387,7 +395,7 @@ class HoneyPotFilesystem(object):
             return True
         if self.tempfiles[fd] is not None:
             shasum = hashlib.sha256(open(self.tempfiles[fd], 'rb').read()).hexdigest()
-            shasumfile = self.cfg.get('honeypot', 'download_path') + "/" + shasum
+            shasumfile = CONFIG.get('honeypot', 'download_path') + "/" + shasum
             if (os.path.exists(shasumfile)):
                 os.remove(self.tempfiles[fd])
             else:
