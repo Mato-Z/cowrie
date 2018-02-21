@@ -67,7 +67,7 @@ class Output(cowrie.core.output.Output):
     def __init__(self):
         try:
             self.debug = CONFIG.getboolean('output_mysql', 'debug')
-            self.apiKey = CONFIG.getstring('output_mysql', 'api_key')
+            self.apiKey = CONFIG.get('output_mysql', 'api_key')
         except:
             debug = False
 
@@ -226,7 +226,7 @@ class Output(cowrie.core.output.Output):
             'SELECT `id` FROM `sensors` WHERE `ip` = %s', (hostIP,))
 
     def insert_wait(self, resource, url, scan_id, sha256):
-        p = CONFIG.getstring('honeypot', 'log_path') + '/backlogs.sqlite'
+        p = CONFIG.get('honeypot', 'log_path') + '/backlogs.sqlite'
         try:
             dbh = sqlite3.connect(p)
             cursor = dbh.cursor()
@@ -244,7 +244,7 @@ class Output(cowrie.core.output.Output):
         return True
 
     def check_wait(self):
-        p = CONFIG.getstring('honeypot', 'log_path') + '/backlogs.sqlite'
+        p = CONFIG.get('honeypot', 'log_path') + '/backlogs.sqlite'
         try:
             dbh = sqlite3.connect(p)
             cursor = dbh.cursor()
@@ -319,7 +319,7 @@ class Output(cowrie.core.output.Output):
         return response
 
     def make_comment(resource):
-        apikey = config().get('virustotal', 'apikey')
+        apikey = CONFIG.get('virustotal', 'apikey')
         url = "https://www.virustotal.com/vtapi/v2/comments/put"
         parameters = {"resource": resource,
                    "comment": "captured by ssh honeypot",
