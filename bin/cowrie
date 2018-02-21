@@ -1,6 +1,6 @@
 #!/bin/bash
 #Change the below to yes if you are using authbind to listen to port 22
-AUTHBIND_ENABLED=no
+AUTHBIND_ENABLED=yes
 
 # To override the default virtual enviroment, either set COWRIE_VIRTUAL_ENV or
 # activate it before starting Cowrie
