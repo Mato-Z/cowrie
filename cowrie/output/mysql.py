@@ -226,7 +226,7 @@ class Output(cowrie.core.output.Output):
             'SELECT `id` FROM `sensors` WHERE `ip` = %s', (hostIP,))
 
     def insert_wait(self, resource, url, scan_id, sha256):
-        p = self.cfg.get('honeypot', 'log_path') + '/backlogs.sqlite'
+        p = CONFIG.getstring('honeypot', 'log_path') + '/backlogs.sqlite'
         try:
             dbh = sqlite3.connect(p)
             cursor = dbh.cursor()
@@ -244,7 +244,7 @@ class Output(cowrie.core.output.Output):
         return True
 
     def check_wait(self):
-        p = self.cfg.get('honeypot', 'log_path') + '/backlogs.sqlite'
+        p = CONFIG.getstring('honeypot', 'log_path') + '/backlogs.sqlite'
         try:
             dbh = sqlite3.connect(p)
             cursor = dbh.cursor()
