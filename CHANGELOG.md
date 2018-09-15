@@ -1,3 +1,11 @@
+* 2018-09-07 NOTE! data/userdb.txt has moved to etc/userdb.txt and a default config is no longer provided!
+* 2018-08-25 Downloads and TTY logs have moved to the var/ directory
+* 2018-08-11 SSH keys now stored in var/lib/cowrie
+* 2018-07-21 source code has move to the src/ directory. Delete old directories twisted/cowrie with compiled code
+* 2018-06-29 txtcmds have been moved to share/cowrie/txtcmds
+* 2018-06-28 filesystem config entry has changed. please verify if you have custom entry or pickle file
+* 2018-06-23 fingerprint log message now holds KEX attributes and a unique fingerprint for the client
+* 2018-04-27 Output plugins now require the mandatory config entry 'enabled'.
 * 2018-02-06 cowrie.log now uses same rotation mechanism as cowrie.json. One file per day, rather than the default 1MB per file.
 * 2017-12-13 Default umask for logs is now 0007. This means group members can access.
 * 2017-10-24 Can store uploaded and downloaded artifacts to S3
