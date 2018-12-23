@@ -168,10 +168,12 @@ class Output(cowrie.core.output.Output):
                 self.versions[sid] = 1
 
         def createTheSession(sid, peerIP, sensorId, asnid, timestamp):
+            #Autor zmenil tvar timestamp, tu ho upravujem aby sedel s vasim
+            timestamp_modified = datetime.datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S')
             self.simpleQueryWithCallback(onSessionCreated,
                 'INSERT INTO `sessions` (`id`, `starttime`, `sensor`, `ip`, `asnid`)' + \
                 ' VALUES (%s, STR_TO_DATE(%s, %s), %s, %s, %s)',
-                (sid, timestamp, '%Y-%m-%dT%H:%i:%s.%fZ', sensorId, peerIP, asnid))
+                (sid, timestamp_modified, '%Y-%m-%d %H:%i:%s', sensorId, peerIP, asnid))#stary parsing: %Y-%m-%dT%H:%i:%s.%fZ
 
         try:
           querycmd1 = reverseIP(peerIP) + '.origin.asn.cymru.com'
@@ -202,7 +204,7 @@ class Output(cowrie.core.output.Output):
             self.createASNForIP(sid, peerIP, id, timestamp)
 
         def onSensorInsert(r):
-            self.simpleQueryWithCallback(onSensorReady, 'SELECT LAST_INSERT_ID()')
+            self.simpleQueryWithCallback(onSensorReady, 'SELECT LAST_INSERT_ID()','')
 
         def onSensorSelect(r):   
             if r:
