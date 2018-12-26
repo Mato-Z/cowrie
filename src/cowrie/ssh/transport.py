@@ -14,7 +14,6 @@ import struct
 import time
 import uuid
 import zlib
-from configparser import NoOptionError
 from hashlib import md5
 
 from twisted.conch.ssh import transport
@@ -68,10 +67,7 @@ class HoneyPotSSHTransport(transport.SSHServerTransport, TimeoutMixin):
         self.currentEncryptions.setKeys(b'', b'', b'', b'', b'', b'')
 
         self.startTime = time.time()
-        try:
-            self.setTimeout(CONFIG.getint('honeypot', 'authentication_timeout'))
-        except NoOptionError:
-            self.setTimeout(120)
+        self.setTimeout(CONFIG.getint('honeypot', 'authentication_timeout', fallback=120))
 
     def sendKexInit(self):
         """
@@ -103,7 +99,7 @@ class HoneyPotSSHTransport(transport.SSHServerTransport, TimeoutMixin):
             self.otherVersionString = self.buf.split(b'\n')[0].strip()
             log.msg(eventid='cowrie.client.version', version=repr(self.otherVersionString),
                     format="Remote SSH version: %(version)s")
-            m = re.match(b'SSH-(\d+).(\d+)-(.*)', self.otherVersionString)
+            m = re.match(br'SSH-(\d+).(\d+)-(.*)', self.otherVersionString)
             if m is None:
                 log.msg("Bad protocol version identification: {}".format(repr(self.otherVersionString)))
                 self.transport.write(b'Protocol mismatch.\n')
@@ -164,10 +160,23 @@ class HoneyPotSSHTransport(transport.SSHServerTransport, TimeoutMixin):
         (kexAlgs, keyAlgs, encCS, _, macCS, _, compCS, _, langCS,
          _) = [s.split(b',') for s in strings]
 
-        client_fingerprint = md5(packet[16:]).hexdigest()
+        # hassh SSH client fingerprint
+        # https://github.com/salesforce/hassh
+        ckexAlgs = ','.join([alg.decode('utf-8') for alg in kexAlgs])
+        cencCS = ','.join([alg.decode('utf-8') for alg in encCS])
+        cmacCS = ','.join([alg.decode('utf-8') for alg in macCS])
+        ccompCS = ','.join([alg.decode('utf-8') for alg in compCS])
+        hasshAlgorithms = "{kex};{enc};{mac};{cmp}".format(
+            kex=ckexAlgs,
+            enc=cencCS,
+            mac=cmacCS,
+            cmp=ccompCS)
+        hassh = md5(hasshAlgorithms.encode('utf-8')).hexdigest()
+
         log.msg(eventid='cowrie.client.kex',
-                format="Remote SSH client fingerprint: %(client_fingerprint)s",
-                client_fingerprint=client_fingerprint,
+                format="SSH client hassh fingerprint: %(hassh)s",
+                hassh=hassh,
+                hasshAlgorithms=hasshAlgorithms,
                 kexAlgs=kexAlgs, keyAlgs=keyAlgs, encCS=encCS, macCS=macCS,
                 compCS=compCS, langCS=langCS)
 
@@ -187,10 +196,7 @@ class HoneyPotSSHTransport(transport.SSHServerTransport, TimeoutMixin):
         """
         # Reset timeout. Not everyone opens shell so need timeout at transport level
         if service.name == b'ssh-connection':
-            try:
-                self.setTimeout(CONFIG.getint('honeypot', 'interactive_timeout'))
-            except NoOptionError:
-                self.setTimeout(300)
+            self.setTimeout(CONFIG.getint('honeypot', 'interactive_timeout', fallback=300))
 
         # when auth is successful we enable compression
         # this is called right after MSG_USERAUTH_SUCCESS

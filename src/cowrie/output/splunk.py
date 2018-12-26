@@ -9,7 +9,11 @@ JSON log file is still recommended way to go
 from __future__ import absolute_import, division
 
 import json
-from StringIO import StringIO
+
+try:
+    from BytesIO import BytesIO
+except ImportError:
+    from io import BytesIO
 
 from twisted.internet import reactor
 from twisted.internet.ssl import ClientContextFactory
@@ -29,28 +33,17 @@ class Output(cowrie.core.output.Output):
         Optional: index, sourcetype, source, host
         """
         self.token = CONFIG.get('output_splunk', 'token')
-        self.url = bytes(CONFIG.get('output_splunk', 'url'))
-        try:
-            self.index = CONFIG.get('output_splunk', 'index')
-        except Exception:
-            self.index = None
-        try:
-            self.source = CONFIG.get('output_splunk', 'source')
-        except Exception:
-            self.source = None
-        try:
-            self.sourcetype = CONFIG.get('output_splunk', 'sourcetype')
-        except Exception:
-            self.sourcetype = None
-        try:
-            self.host = CONFIG.get('output_splunk', 'host')
-        except Exception:
-            self.host = None
+        self.url = CONFIG.get('output_splunk', 'url').encode('utf8')
+        self.index = CONFIG.get('output_splunk', 'index', fallback=None)
+        self.source = CONFIG.get('output_splunk', 'source', fallback=None)
+        self.sourcetype = CONFIG.get('output_splunk', 'sourcetype', fallback=None)
+        self.host = CONFIG.get('output_splunk', 'host', fallback=None)
 
         cowrie.core.output.Output.__init__(self)
 
     def start(self):
         contextFactory = WebClientContextFactory()
+        # contextFactory.method = TLSv1_METHOD
         self.agent = client.Agent(reactor, contextFactory)
 
     def stop(self):
@@ -81,12 +74,12 @@ class Output(cowrie.core.output.Output):
         Send a JSON log entry to Splunk with Twisted
         """
         headers = http_headers.Headers({
-            'User-Agent': ['Cowrie SSH Honeypot'],
-            'Authorization': ["Splunk " + self.token],
-            'Content-Type': ["application/json"]
+            b'User-Agent': [b'Cowrie SSH Honeypot'],
+            b'Authorization': [b"Splunk " + self.token.encode('utf8')],
+            b'Content-Type': [b'application/json']
         })
-        body = FileBodyProducer(StringIO(json.dumps(entry)))
-        d = self.agent.request('POST', self.url, headers, body)
+        body = FileBodyProducer(BytesIO(json.dumps(entry).encode('utf8')))
+        d = self.agent.request(b'POST', self.url, headers, body)
 
         def cbBody(body):
             return processResult(body)

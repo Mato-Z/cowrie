@@ -507,7 +507,7 @@ listen_endpoints = tcp:2223:interface=0.0.0.0
 [output_jsonlog]
 enabled = true
 logfile = ${honeypot:log_path}/cowrie.json
-
+epoch_timestamp = false
 
 # Supports logging to Elasticsearch
 # This is a simple early release
@@ -606,20 +606,9 @@ logfile = ${honeypot:log_path}/cowrie.json
 #database = dbname
 
 
-# Splunk SDK output module - Legacy. Requires Splunk API installed
-# This sends logs directly to Splunk using the Python REST SDK
-#
-#[output_splunklegacy]
-#enabled = false
-#host = localhost
-#port = 8889
-#username = admin
-#password = password
-#index = cowrie
-
-
 # Splunk HTTP Event Collector (HEC) output module
-# Sends JSON directly to Splunk over HTTPS
+# sends JSON directly to Splunk over HTTP or HTTPS
+# Use 'https' if your HEC is encrypted, else 'http'
 # mandatory fields: url, token
 # optional fields: index, source, sourcetype, host
 #
@@ -651,6 +640,8 @@ logfile = ${honeypot:log_path}/cowrie.json
 #api_key = 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
 #upload = True
 #debug = False
+#scan_file = True
+#scan_url = False
 
 
 # Cuckoo output module

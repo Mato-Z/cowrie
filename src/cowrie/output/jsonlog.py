@@ -41,6 +41,7 @@ class Output(cowrie.core.output.Output):
     def __init__(self):
         cowrie.core.output.Output.__init__(self)
         fn = CONFIG.get('output_jsonlog', 'logfile')
+        self.epoch_timestamp = CONFIG.getboolean('output_jsonlog', 'epoch_timestamp', fallback=False)
         dirs = os.path.dirname(fn)
         base = os.path.basename(fn)
         self.outfile = cowrie.python.logfile.CowrieDailyLogFile(base, dirs, defaultMode=0o664)
@@ -52,6 +53,8 @@ class Output(cowrie.core.output.Output):
         self.outfile.flush()
 
     def write(self, logentry):
+        if self.epoch_timestamp:
+            logentry['epoch'] = int(logentry['time'] * 1000000 / 1000)
         for i in list(logentry.keys()):
             # Remove twisted 15 legacy keys
             if i.startswith('log_') or i == 'time' or i == 'system':

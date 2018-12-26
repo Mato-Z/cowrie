@@ -10,7 +10,6 @@ from __future__ import absolute_import, division
 import struct
 import time
 import uuid
-from configparser import NoOptionError
 
 from twisted.conch.telnet import AlreadyNegotiating, AuthenticatingTelnetProtocol, ITelnetProtocol, TelnetTransport
 from twisted.conch.telnet import ECHO, LINEMODE, NAWS, SGA
@@ -35,8 +34,6 @@ class HoneyPotTelnetFactory(protocol.ServerFactory):
         Special delivery to the loggers to avoid scope problems
         """
         args['sessionno'] = 'T{0}'.format(str(args['sessionno']))
-        for dblog in self.tac.dbloggers:
-            dblog.logDispatch(*msg, **args)
         for output in self.tac.output_plugins:
             output.logDispatch(*msg, **args)
 
@@ -143,10 +140,7 @@ class HoneyPotTelnetAuthProtocol(AuthenticatingTelnetProtocol):
         self.transport.write(b'\n')
 
         # Remove the short timeout of the login prompt.
-        try:
-            self.transport.setTimeout(CONFIG.getint('honeypot', 'interactive_timeout'))
-        except NoOptionError:
-            self.transport.setTimeout(300)
+        self.transport.setTimeout(CONFIG.getint('honeypot', 'interactive_timeout', fallback=300))
 
         # replace myself with avatar protocol
         protocol.makeConnection(self.transport)
@@ -197,10 +191,7 @@ class CowrieTelnetTransport(TelnetTransport, TimeoutMixin):
         sessionno = self.transport.sessionno
 
         self.startTime = time.time()
-        try:
-            self.setTimeout(CONFIG.getint('honeypot', 'authentication_timeout'))
-        except NoOptionError:
-            self.setTimeout(120)
+        self.setTimeout(CONFIG.getint('honeypot', 'authentication_timeout', fallback=120))
 
         log.msg(eventid='cowrie.session.connect',
                 format='New connection: %(src_ip)s:%(src_port)s (%(dst_ip)s:%(dst_port)s) [session: %(session)s]',
@@ -223,6 +214,14 @@ class CowrieTelnetTransport(TelnetTransport, TimeoutMixin):
         http://stackoverflow.com/questions/35087250/twisted-telnet-server-how-to-avoid-nested-crlf
         """
         self.transport.write(data.replace(b'\r\n', b'\n'))
+
+    def timeoutConnection(self):
+        """
+        Make sure all sessions time out eventually.
+        Timeout is reset when authentication succeeds.
+        """
+        log.msg("Timeout reached in CowrieTelnetTransport")
+        self.transport.loseConnection()
 
     def connectionLost(self, reason):
         """
