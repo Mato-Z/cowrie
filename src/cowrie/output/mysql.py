@@ -418,18 +418,18 @@ class Output(cowrie.core.output.Output):
             extraPresent = False
             cvs = entry['version']
             extraStart = cvs.rfind('_')
-            try:
-              j = json.loads(cvs[extraStart + 1:])
-              hostport = j['hostport']
-              host = hostport[:hostport.rfind(':')]
-              port = hostport[len(host) + 1:]
-              entry['version'] = cvs[:extraStart]
-              yield self.db.runQuery(
+#            try:
+            j = json.loads(cvs[extraStart + 1:])
+            hostport = j['hostport']
+            host = hostport[:hostport.rfind(':')]
+            port = hostport[len(host) + 1:]
+            entry['version'] = cvs[:extraStart]
+            yield self.db.runQuery(
                   'UPDATE `sessions` SET `ip` = %s WHERE `id` = %s',
                   (host, entry['session'],))
-              extraPresent = True
-            except:
-              extraPresent = False
+            extraPresent = True
+#            except:
+#              extraPresent = False
 
             r = yield self.db.runQuery(
                 'SELECT `id` FROM `clients` '
