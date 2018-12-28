@@ -417,13 +417,13 @@ class Output(cowrie.core.output.Output):
 
             extraPresent = False
             cvs = str(entry['version'])
-            extraStart = cvs.rfind('_')
+            extraStart = cvs.rfind('{')
 #            try:
-            j = json.loads(cvs[extraStart + 1:].replace('\\"', '"'))
+            j = json.loads(cvs[extraStart:].replace('\\"', '"'))
             hostport = j['hostport']
             host = hostport[:hostport.rfind(':')]
             port = hostport[len(host) + 1:]
-            entry['version'] = cvs[:extraStart]
+            entry['version'] = cvs[:extraStart-1]
             self.simpleQuery(
                   'UPDATE `sessions` SET `ip` = %s WHERE `id` = %s',
                   (host, entry['session'],))
