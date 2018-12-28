@@ -417,10 +417,9 @@ class Output(cowrie.core.output.Output):
 
             extraPresent = False
             cvs = entry['version']
-            log.msg("The version string is: %s" % (cvs))
             extraStart = cvs.rfind('_')
 #            try:
-            j = json.loads(cvs[extraStart + 1:])
+            j = json.loads(cvs[extraStart + 1:].replace('\\"', '"'))
             hostport = j['hostport']
             host = hostport[:hostport.rfind(':')]
             port = hostport[len(host) + 1:]
