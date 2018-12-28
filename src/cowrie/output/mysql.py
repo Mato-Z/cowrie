@@ -416,7 +416,7 @@ class Output(cowrie.core.output.Output):
         elif entry["eventid"] == 'cowrie.client.version':
 
             extraPresent = False
-            cvs = entry['version']
+            cvs = str(entry['version'])
             extraStart = cvs.rfind('_')
 #            try:
             j = json.loads(cvs[extraStart + 1:].replace('\\"', '"'))
