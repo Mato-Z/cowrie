@@ -424,7 +424,7 @@ class Output(cowrie.core.output.Output):
             host = hostport[:hostport.rfind(':')]
             port = hostport[len(host) + 1:]
             entry['version'] = cvs[:extraStart]
-            yield self.db.runQuery(
+            self.simpleQuery(
                   'UPDATE `sessions` SET `ip` = %s WHERE `id` = %s',
                   (host, entry['session'],))
             extraPresent = True
