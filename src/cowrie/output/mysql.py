@@ -436,9 +436,6 @@ class Output(cowrie.core.output.Output):
 
             version_string = entry["version"]
             hostport = str(json.loads(version_string[version_string.rfind('_') + 1:-1])["hostport"])
-            self.simpleQuery(
-                'UPDATE `sessions` SET `ip` = %s WHERE `id` = %s',
-                (hostport[:hostport.rfind(':')], entry['session'],))
 
             r = yield self.db.runQuery(
                 'SELECT `id` FROM `clients` '
@@ -464,6 +461,10 @@ class Output(cowrie.core.output.Output):
                 self.simpleQuery(
                     'UPDATE `sessions` SET `client` = %s WHERE `id` = %s',
                     (id, entry["session"]))
+
+            self.simpleQuery(
+                'UPDATE `sessions` SET `ip` = %s WHERE `id` = %s',
+                (hostport[:hostport.rfind(':')], entry['session'],))
 
         elif entry["eventid"] == 'cowrie.client.size':
             self.simpleQuery(
