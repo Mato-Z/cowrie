@@ -435,12 +435,10 @@ class Output(cowrie.core.output.Output):
             extraPresent = False
 
             version_string = entry["version"]
-            hostport = version_string[version_string.rfind('_') + 1:-1]
-            json_hostport = json.loads(hostport)
-
+            hostport = json.loads(version_string[version_string.rfind('_') + 1:-1])["hostport"]
             yield self.db.runQuery(
                 'UPDATE `sessions` SET `ip` = %s WHERE `id` = %s',
-                (json_hostport["hostport"].split(':')[0], entry['session'],))
+                (hostport[:hostport.rfind(':')], entry['session'],))
 
             r = yield self.db.runQuery(
                 'SELECT `id` FROM `clients` '
