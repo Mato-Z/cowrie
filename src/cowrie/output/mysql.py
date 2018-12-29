@@ -417,6 +417,7 @@ class Output(cowrie.core.output.Output):
 
             extraPresent = False
             cvs = str(entry['version'])
+            log.error("cvs = " + cvs)
             extraStart = cvs.rfind('{')
 #            try:
             j = json.loads(cvs[extraStart:].replace('\\"', '"'))
