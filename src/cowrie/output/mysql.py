@@ -432,9 +432,6 @@ class Output(cowrie.core.output.Output):
                              (entry["session"], entry["time"], entry["realm"], entry["input"]))
 
         elif entry["eventid"] == 'cowrie.client.version':
-            #raise ValueError('TEST  TEST  TEST  TEST  TEST  TEST  TEST  TEST  TEST  TEST  TEST  TEST  TEST  TEST  TEST  TEST  TEST  TEST  TEST  TEST  TEST  TEST  TEST  TEST  TEST  TEST')
-            #raise ValueError(entry)
-            #log.err(entry)
             extraPresent = False
 
             version_string = entry["version"]
