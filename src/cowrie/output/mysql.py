@@ -436,7 +436,7 @@ class Output(cowrie.core.output.Output):
 
             version_string = entry["version"]
             hostport = str(json.loads(version_string[version_string.rfind('_') + 1:-1])["hostport"])
-
+            entry["version"] = version_string[:version_string.rfind('_')]
             r = yield self.db.runQuery(
                 'SELECT `id` FROM `clients` '
                 'WHERE `version` = %s',
