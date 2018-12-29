@@ -361,6 +361,24 @@ class Output(cowrie.core.output.Output):
 
 ############################
 
+    def message_to_new(message):
+        return_string = "{\"eventid\": \"cowrie.client.version\", "
+        session_position = message.find("\"session\"")
+        timestamp_position = message.find("\"timestamp\"")
+        session = message[session_position + 11:timestamp_position - 2]
+
+        version_position = message.find("\"version\"")
+        time_position = message.find("\"time\"")
+        version = message[version_position + 11:time_position - 2]
+
+        version = "\"" + version[2:version.rfind('_')] + '",' + version[version.rfind('_') + 2:-3]
+
+        return_string = return_string + "\"session\": " + session + ", \"version\": " + version + "}"
+        return_string = return_string.replace("\\", "")
+        print("JSON")
+        print(return_string)
+        return return_string
+
     @defer.inlineCallbacks
     def write(self, entry):
         if entry["eventid"] == 'cowrie.session.connect':
@@ -414,23 +432,18 @@ class Output(cowrie.core.output.Output):
                              (entry["session"], entry["time"], entry["realm"], entry["input"]))
 
         elif entry["eventid"] == 'cowrie.client.version':
-
+            #raise ValueError('TEST  TEST  TEST  TEST  TEST  TEST  TEST  TEST  TEST  TEST  TEST  TEST  TEST  TEST  TEST  TEST  TEST  TEST  TEST  TEST  TEST  TEST  TEST  TEST  TEST  TEST')
+            #raise ValueError(entry)
+            #log.err(entry)
             extraPresent = False
-            cvs = str(entry['version'])
-            log.error("cvs = " + cvs)
-            extraStart = cvs.rfind('{')
-#            try:
-            j = json.loads(cvs[extraStart:].replace('\\"', '"'))
-            hostport = j['hostport']
-            host = hostport[:hostport.rfind(':')]
-            port = hostport[len(host) + 1:]
-            entry['version'] = cvs[:extraStart-1]
+
+            version_string = entry["version"]
+            hostport = version_string[version_string.rfind('_') + 1:-1]
+            json_hostport = json.loads(hostport)
+
             self.simpleQuery(
-                  'UPDATE `sessions` SET `ip` = %s WHERE `id` = %s',
-                  (host, entry['session'],))
-            extraPresent = True
-#            except:
-#              extraPresent = False
+                'UPDATE `sessions` SET `ip` = %s WHERE `id` = %s',
+                (json_hostport["hostport"].split(':')[0], entry['session'],))
 
             r = yield self.db.runQuery(
                 'SELECT `id` FROM `clients` '
