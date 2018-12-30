@@ -180,7 +180,7 @@ class Output(cowrie.core.output.Output):
 
             asId = int(r[0][0])
 
-        return asId
+        yield asId
 
     def createSessionWhenever(self, sid, peerIP, hostIP, timestamp=None):
         r = yield self.db.runQuery('SELECT `id` FROM `sensors` WHERE `ip` = %s', (hostIP,))
