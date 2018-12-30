@@ -174,7 +174,7 @@ class Output(cowrie.core.output.Output):
             registry = addslashes(response1List[3].strip())
             isp = network + "-" + isp
             r = yield self.db.runQuery('SELECT `asnid` FROM `asinfo` WHERE `asn` = %s AND `rir` = %s AND `country` = %s AND `asname` = %s ', (ASN, registry, country, isp))
-            if !r:
+            if not r:
                 yield self.db.runQuery('INSERT INTO `asinfo` (`asn`, `rir`, `country`, `asname`) VALUES (%s, %s, %s, %s) ', (ASN, registry, country, isp))
                 r = yield self.db.runQuery('SELECT LAST_INSERT_ID()',)
 
@@ -184,7 +184,7 @@ class Output(cowrie.core.output.Output):
 
     def createSessionWhenever(self, sid, peerIP, hostIP, timestamp=None):
         r = yield self.db.runQuery('SELECT `id` FROM `sensors` WHERE `ip` = %s', (hostIP,))
-        if !r:
+        if not r:
           yield self.db.runQuery('INSERT INTO `sensors` (`ip`) VALUES (%s)', (hostIP,))
           r = yield self.db.runQuery('SELECT LAST_INSERT_ID()',)
 
