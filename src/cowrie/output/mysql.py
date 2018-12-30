@@ -187,11 +187,11 @@ class Output(cowrie.core.output.Output):
     def createSessionWhenever(self, sid, peerIP, hostIP, timestamp=None):
         r = yield self.db.runQuery('SELECT `id` FROM `sensors` WHERE `ip` = %s', (hostIP,))
         if r:
-          sencorId = int(r[0][0])
+          sensorId = int(r[0][0])
         else:
           yield self.db.runQuery('INSERT INTO `sensors` (`ip`) VALUES (%s)', (hostIP,))
           r = yield self.db.runQuery('SELECT LAST_INSERT_ID()',)
-          sencorId = int(r[0][0])
+          sensorId = int(r[0][0])
 
         self.createTheSession(sid, peerIP, sensorId, '1', timestamp)
 
