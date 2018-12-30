@@ -135,7 +135,7 @@ class Output(cowrie.core.output.Output):
 
     def createTheSession(self, sid, peerIP, sensorId, asnid, timestamp):
         timestamp_modified = datetime.datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S')
-        yield self.db.runQuery(
+        self.db.runOperation(
                 'INSERT INTO `sessions` (`id`, `starttime`, `sensor`, `ip`, `asnid`)' + \
                 ' VALUES (%s, STR_TO_DATE(%s, %s), %s, %s, %s)',
                 (sid, timestamp_modified, '%Y-%m-%d %H:%i:%s', sensorId, peerIP, asnid))#stary parsing: %Y-%m-%dT%H:%i:%s.%fZ
@@ -177,7 +177,7 @@ class Output(cowrie.core.output.Output):
             if r:
                 asId = int(r[0][0])
             else:
-                yield self.db.runQuery('INSERT INTO `asinfo` (`asn`, `rir`, `country`, `asname`) VALUES (%s, %s, %s, %s) ', (ASN, registry, country, isp))
+                self.db.runOperation('INSERT INTO `asinfo` (`asn`, `rir`, `country`, `asname`) VALUES (%s, %s, %s, %s) ', (ASN, registry, country, isp))
                 r = yield self.db.runQuery('SELECT LAST_INSERT_ID()',)
                 asId = int(r[0][0])
 
@@ -189,7 +189,7 @@ class Output(cowrie.core.output.Output):
         if r:
           sensorId = int(r[0][0])
         else:
-          yield self.db.runQuery('INSERT INTO `sensors` (`ip`) VALUES (%s)', (hostIP,))
+          self.db.runOperation('INSERT INTO `sensors` (`ip`) VALUES (%s)', (hostIP,))
           r = yield self.db.runQuery('SELECT LAST_INSERT_ID()',)
           sensorId = int(r[0][0])
 
@@ -426,7 +426,7 @@ class Output(cowrie.core.output.Output):
             if r:
                 clientId = int(r[0][0])
             else:
-                yield self.db.runQuery(
+                self.db.runOperation(
                     'INSERT INTO `clients` (`version`) '
                     'VALUES (%s)',
                     (entry['version'],))
