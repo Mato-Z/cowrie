@@ -133,7 +133,14 @@ class Output(cowrie.core.output.Output):
         self.createSessionWhenever(sid, peerIP, hostIP, timestamp)
         return sid
 
-    def createASNForIP(self, sid, peerIP, sensorId, timestamp):
+    def createTheSession(self, sid, peerIP, sensorId, asnid, timestamp):
+        timestamp_modified = datetime.datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S')
+        yield self.db.runQuery(
+                'INSERT INTO `sessions` (`id`, `starttime`, `sensor`, `ip`, `asnid`)' + \
+                ' VALUES (%s, STR_TO_DATE(%s, %s), %s, %s, %s)',
+                (sid, timestamp_modified, '%Y-%m-%d %H:%i:%s', sensorId, peerIP, asnid))#stary parsing: %Y-%m-%dT%H:%i:%s.%fZ
+
+    def createASNForIP(self, peerIP):
         def addslashes(s):
             l = ["\\", '"', "'", "\0", ]
             for i in l:
@@ -145,35 +152,6 @@ class Output(cowrie.core.output.Output):
             temp = address.split(".")
             convertedAddress = str(temp[3]) +'.' + str(temp[2]) + '.' + str(temp[1]) +'.' + str(temp[0])
             return convertedAddress
-
-        def onASNRecordTest(r):
-            if r:
-                createTheSession(sid, peerIP, sensorId, int(r[0][0]), timestamp)
-            else:
-               self.simpleQueryWithCallback(onASNRecordInsert, 'INSERT INTO `asinfo` (`asn`, `rir`, `country`, `asname`) VALUES (%s, %s, %s, %s) ', (ASN, registry, country, isp))
-
-        def onASNRecordInsert(r):
-            self.simpleQueryWithCallback(onASNRecordReady, 'SELECT `asnid` FROM `asinfo` WHERE `asn` = %s AND `rir` = %s AND `country` = %s AND `asname` = %s ', (ASN, registry, country, isp))
-
-        def onASNRecordReady(r):
-            createTheSession(sid, peerIP, sensorId, int(r[0][0]), timestamp)
-
-        def onSessionCreated(r):
-            if self.versions.has_key(sid):
-                self.simpleQuery(
-                    'UPDATE `sessions` SET `client` = %s WHERE `id` = %s',
-                    (self.versions[sid], sid))
-                del self.versions[sid]
-            else:
-                self.versions[sid] = 1
-
-        def createTheSession(sid, peerIP, sensorId, asnid, timestamp):
-            #Autor zmenil tvar timestamp, tu ho upravujem aby sedel s vasim
-            timestamp_modified = datetime.datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S')
-            self.simpleQueryWithCallback(onSessionCreated,
-                'INSERT INTO `sessions` (`id`, `starttime`, `sensor`, `ip`, `asnid`)' + \
-                ' VALUES (%s, STR_TO_DATE(%s, %s), %s, %s, %s)',
-                (sid, timestamp_modified, '%Y-%m-%d %H:%i:%s', sensorId, peerIP, asnid))#stary parsing: %Y-%m-%dT%H:%i:%s.%fZ
 
         try:
           querycmd1 = reverseIP(peerIP) + '.origin.asn.cymru.com'
@@ -188,33 +166,31 @@ class Output(cowrie.core.output.Output):
           log.msg("dig process error: " + str(sys.exc_info()))
 
         response2List = response2.split('|')
-        if len(response2List) < 4:
-            createTheSession(sid, peerIP, sensorId, '1', timestamp)
-        else:
+        asId = 1
+        if len(response2List) >= 4:
             isp = addslashes(response2List[4].replace('"', ''))
             network = addslashes(response1List[1].strip())
             country = addslashes(response1List[2].strip())
             registry = addslashes(response1List[3].strip())
             isp = network + "-" + isp
-            self.simpleQueryWithCallback(onASNRecordTest, 'SELECT `asnid` FROM `asinfo` WHERE `asn` = %s AND `rir` = %s AND `country` = %s AND `asname` = %s ', (ASN, registry, country, isp))
+            r = yield self.db.runQuery('SELECT `asnid` FROM `asinfo` WHERE `asn` = %s AND `rir` = %s AND `country` = %s AND `asname` = %s ', (ASN, registry, country, isp))
+            if !r:
+                yield self.db.runQuery('INSERT INTO `asinfo` (`asn`, `rir`, `country`, `asname`) VALUES (%s, %s, %s, %s) ', (ASN, registry, country, isp))
+                r = yield self.db.runQuery('SELECT LAST_INSERT_ID()',)
+
+            asId = int(r[0][0])
+
+        return asId
 
     def createSessionWhenever(self, sid, peerIP, hostIP, timestamp=None):
-        def onSensorReady(r):
-            id = int(r[0][0])
-            self.createASNForIP(sid, peerIP, id, timestamp)
+        r = yield self.db.runQuery('SELECT `id` FROM `sensors` WHERE `ip` = %s', (hostIP,))
+        if !r:
+          yield self.db.runQuery('INSERT INTO `sensors` (`ip`) VALUES (%s)', (hostIP,))
+          r = yield self.db.runQuery('SELECT LAST_INSERT_ID()',)
 
-        def onSensorInsert(r):
-            self.simpleQueryWithCallback(onSensorReady, 'SELECT LAST_INSERT_ID()','')
+        sencorId = int(r[0][0])
+        self.createTheSession(sid, peerIP, sensorId, '1', timestamp)
 
-        def onSensorSelect(r):   
-            if r:
-                onSensorReady(r)
-            else:
-                self.simpleQueryWithCallback(onSensorInsert,
-                    'INSERT INTO `sensors` (`ip`) VALUES (%s)', (hostIP,))
-
-        self.simpleQueryWithCallback(onSensorSelect,
-            'SELECT `id` FROM `sensors` WHERE `ip` = %s', (hostIP,))
 
     def insert_wait(self, resource, url, scan_id, sha256):
         p = CONFIG.get('honeypot', 'log_path') + '/backlogs.sqlite'
@@ -436,6 +412,7 @@ class Output(cowrie.core.output.Output):
 
             version_string = entry["version"]
             hostport = str(json.loads(version_string[version_string.rfind('_') + 1:-1])["hostport"])
+            realIP = hostport[:hostport.rfind(':')]
             entry["version"] = version_string[:version_string.rfind('_')]
             r = yield self.db.runQuery(
                 'SELECT `id` FROM `clients` '
@@ -443,7 +420,7 @@ class Output(cowrie.core.output.Output):
                 (entry['version'],))
 
             if r:
-                id = int(r[0][0])
+                clientId = int(r[0][0])
             else:
                 yield self.db.runQuery(
                     'INSERT INTO `clients` (`version`) '
@@ -451,20 +428,10 @@ class Output(cowrie.core.output.Output):
                     (entry['version'],))
 
                 r = yield self.db.runQuery('SELECT LAST_INSERT_ID()')
-                id = int(r[0][0])
+                clientId = int(r[0][0])
 
-
-            if not self.versions.has_key(entry['session']):
-                self.versions[entry['session']] = id
-            else:
-                del self.versions[entry['session']]
-                self.simpleQuery(
-                    'UPDATE `sessions` SET `client` = %s WHERE `id` = %s',
-                    (id, entry["session"]))
-
-            self.simpleQuery(
-                'UPDATE `sessions` SET `ip` = %s WHERE `id` = %s',
-                (hostport[:hostport.rfind(':')], entry['session'],))
+            asId = self.createASNForIP(realIP)
+            yield self.db.runQuery('UPDATE `sessions` SET `ip` = %s, `client` = %s, `asnid` = %s WHERE `id` = %s', (realIP, clientId, asId, entry['session'], ))
 
         elif entry["eventid"] == 'cowrie.client.size':
             self.simpleQuery(
