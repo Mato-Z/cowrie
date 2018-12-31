@@ -385,7 +385,7 @@ class Output(cowrie.core.output.Output):
         if entry["eventid"] == 'cowrie.session.connect':
             self.simpleQuery('INSERT INTO `sessions` (`id`, `starttime`, `sensor`, `ip`)' + \
                 ' VALUES (%s, STR_TO_DATE(%s, %s), %s, %s)',
-                (entry['session'], '1991-1-1 1:1:1', '%Y-%m-%d %H:%i:%s', '1', '1'))#stary parsing: %Y-%m-%dT%H:%i:%s.%fZ
+                (entry['session'], '1991-1-1 1:1:1', '%Y-%m-%d %H:%i:%s', '1', entry['src_ip']))#stary parsing: %Y-%m-%dT%H:%i:%s.%fZ
 
 
 
@@ -437,11 +437,15 @@ class Output(cowrie.core.output.Output):
                              (entry["session"], entry["time"], entry["realm"], entry["input"]))
 
         elif entry["eventid"] == 'cowrie.client.version':
-            extraPresent = False
-            version_string = entry["version"]
-            hostport = json.loads(version_string[version_string.rfind('_') + 1:-1])["hostport"]
+            try:
+                version_string = entry["version"]
+                hostport = json.loads(version_string[version_string.rfind('_') + 1:-1])["hostport"]
+                entry['src_ip'] = hostport[:hostport.rfind(':')];
+                extraPresent = True
+            except:
+                extraPresent = False
 
-            self.createSessionWhenever(entry['session'], hostport[:hostport.rfind(':')], self.sensor, entry['time'])
+            self.createSessionWhenever(entry['session'], entry['src_ip'], self.sensor, entry['time'])
 
             #yield self.db.runQuery(
             #    'UPDATE `sessions` SET `ip` = %s WHERE `id` = %s',
