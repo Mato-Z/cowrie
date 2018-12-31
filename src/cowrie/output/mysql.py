@@ -171,9 +171,10 @@ class Output(cowrie.core.output.Output):
             #Autor zmenil tvar timestamp, tu ho upravujem aby sedel s vasim
             timestamp_modified = datetime.datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S')
             self.simpleQueryWithCallback(onSessionCreated,
-                'INSERT INTO `sessions` (`id`, `starttime`, `sensor`, `ip`, `asnid`)' + \
-                ' VALUES (%s, STR_TO_DATE(%s, %s), %s, %s, %s)',
-                (sid, timestamp_modified, '%Y-%m-%d %H:%i:%s', sensorId, peerIP, asnid))#stary parsing: %Y-%m-%dT%H:%i:%s.%fZ
+                'UPDATE `sessions` SET `starttime` = STR_TO_DATE(%s, %s), `sensor` = %s, `ip` = %s, `asnid` = %s' + \
+                ' WHERE `id` = %s',
+                (timestamp_modified, '%Y-%m-%d %H:%i:%s', sensorId, peerIP, asnid, sid))#stary parsing: %Y-%m-%dT%H:%i:%s.%fZ
+
 
         try:
           querycmd1 = reverseIP(peerIP) + '.origin.asn.cymru.com'
@@ -382,7 +383,11 @@ class Output(cowrie.core.output.Output):
     @defer.inlineCallbacks
     def write(self, entry):
         if entry["eventid"] == 'cowrie.session.connect':
-            self.createSessionWhenever(entry['session'], entry['src_ip'], self.sensor, entry['time'])
+            self.simpleQuery('INSERT INTO `sessions` (`id`, `starttime`, `sensor`, `ip`)' + \
+                ' VALUES (%s, STR_TO_DATE(%s, %s), %s, %s)',
+                (entry['session'], '1991-1-1 1:1:1', '%Y-%m-%d %H:%i:%s', '1', '1'))#stary parsing: %Y-%m-%dT%H:%i:%s.%fZ
+
+
 
         elif entry["eventid"] == 'cowrie.login.success':
             self.simpleQuery('INSERT INTO `auth` (`session`, `success`, `username`, `password`, `timestamp`) '
@@ -433,14 +438,14 @@ class Output(cowrie.core.output.Output):
 
         elif entry["eventid"] == 'cowrie.client.version':
             extraPresent = False
-
             version_string = entry["version"]
-            hostport = version_string[version_string.rfind('_') + 1:-1]
-            json_hostport = json.loads(hostport)
+            hostport = json.loads(version_string[version_string.rfind('_') + 1:-1])["hostport"]
 
-            self.simpleQuery(
-                'UPDATE `sessions` SET `ip` = %s WHERE `id` = %s',
-                (json_hostport["hostport"].split(':')[0], entry['session'],))
+            self.createSessionWhenever(entry['session'], hostport[:hostport.rfind(':')], self.sensor, entry['time'])
+
+            #yield self.db.runQuery(
+            #    'UPDATE `sessions` SET `ip` = %s WHERE `id` = %s',
+            #    (hostport[:hostport.rfind(':')], entry['session'],))
 
             r = yield self.db.runQuery(
                 'SELECT `id` FROM `clients` '
