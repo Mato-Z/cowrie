@@ -441,6 +441,7 @@ class Output(cowrie.core.output.Output):
                 version_string = entry["version"]
                 hostport = json.loads(version_string[version_string.rfind('_') + 1:-1])["hostport"]
                 entry['src_ip'] = hostport[:hostport.rfind(':')];
+                entry['version'] = version_string[1:version_string.rfind('_')]
                 extraPresent = True
             except:
                 extraPresent = False
