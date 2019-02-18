@@ -150,7 +150,8 @@ class Output(cowrie.core.output.Output):
             if r:
                 createTheSession(sid, peerIP, sensorId, int(r[0][0]), timestamp)
             else:
-               self.simpleQueryWithCallback(onASNRecordInsert, 'INSERT INTO `asinfo` (`asn`, `rir`, `country`, `asname`) VALUES (%s, %s, %s, %s) ', (ASN, registry, country, isp))
+                timeModified = datetime.datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S')
+               self.simpleQueryWithCallback(onASNRecordInsert, 'INSERT INTO `asinfo` (`asn`, `rir`, `country`, `asname`, `updatedTime`) VALUES (%s, %s, %s, %s, STR_TO_DATE(%s, %s)) ', (ASN, registry, country, isp, timeModified, '%Y-%m-%d %H:%i:%s'))
 
         def onASNRecordInsert(r):
             self.simpleQueryWithCallback(onASNRecordReady, 'SELECT `asnid` FROM `asinfo` WHERE `asn` = %s AND `rir` = %s AND `country` = %s AND `asname` = %s ', (ASN, registry, country, isp))
@@ -197,7 +198,7 @@ class Output(cowrie.core.output.Output):
             country = addslashes(response1List[2].strip())
             registry = addslashes(response1List[3].strip())
             isp = network + "-" + isp
-            self.simpleQueryWithCallback(onASNRecordTest, 'SELECT `asnid` FROM `asinfo` WHERE `asn` = %s AND `rir` = %s AND `country` = %s AND `asname` = %s ', (ASN, registry, country, isp))
+            self.simpleQueryWithCallback(onASNRecordTest, 'SELECT `asnid` FROM `asinfo` WHERE `updated` = FALSE AND `asn` = %s AND `rir` = %s AND `country` = %s AND `asname` = %s ', (ASN, registry, country, isp))
 
     def createSessionWhenever(self, sid, peerIP, hostIP, timestamp=None):
         def onSensorReady(r):
