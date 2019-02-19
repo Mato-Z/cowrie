@@ -30,7 +30,7 @@ for line in ips:
   r = cursor.fetchall()
   if cursor.rowcount > 0:
     asnid = int(r[0][0])
-    print("Matching AS record exists with ID " + str(asnid))
+    print("  Matching AS record exists with ID " + str(asnid))
   else:
     cursor.execute('INSERT INTO `asinfo` (`asn`, `rir`, `country`, `asname`, `updated`, `updatedTime`) VALUES (%s, %s, %s, %s, TRUE, NOW())', (asn, rir, country, asname))
     asnid = cursor.lastrowid
