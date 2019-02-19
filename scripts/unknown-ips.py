@@ -21,9 +21,10 @@ for line in ips:
   (ip, asn, rir, country, asname) = line.split(';')
   print(ip + '...')
   cursor.execute("SELECT `asnid` FROM `asinfo` WHERE `asn`=%s AND `rir`=%s AND `country`=%s AND `asname`=%s AND `updated`=TRUE ", (asn, rir, country, asname))
+  r = cursor.fetchall()
   if cursor.rowcount > 0:
-    asnid = int(cursor[0][0])
-	print("Matching AS record exists with ID " + str(asnid))
+    asnid = int(r[0][0])
+    print("Matching AS record exists with ID " + str(asnid))
   else:
     cursor.execute('INSERT INTO `asinfo` (`asn`, `rir`, `country`, `asname`, `updated`, `updatedTime`) VALUES (%s, %s, %s, %s, TRUE, NOW())', (asn, rir, country, asname))
     asnid = cursor.lastrowid
