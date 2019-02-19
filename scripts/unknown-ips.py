@@ -1,11 +1,17 @@
 import mysql.connector
 
+ip_file_name = 'unknown-ips.txt'
+db_host = ''
+user_name = ''
+database_name = ''
+db_password = ''
+
 print 'Loading IPs to update...'
-ips = open('unknown-ips.txt', "r").readlines()
+ips = open(ip_file_name, "r").readlines()
 
 print 'Connecting...'
-cnx = mysql.connector.connect(user=', database='',
-password='')
+cnx = mysql.connector.connect(host=db_host, user=user_name, database=database_name,
+password=db_password)
 cursor = cnx.cursor()
 
 for line in ips:
