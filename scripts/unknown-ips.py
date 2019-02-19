@@ -20,6 +20,12 @@ for line in ips:
 
   (ip, asn, rir, country, asname) = line.split(';')
   print(ip + '...')
+  cursor.execute('SELECT * FROM `sessions` WHERE `ip` = %s AND `asnid`=1', (ip, ))
+  r = cursor.fetchall()
+  if cursor.rowcount == 0:
+    print("  Nothing to update")
+    continue
+
   cursor.execute("SELECT `asnid` FROM `asinfo` WHERE `asn`=%s AND `rir`=%s AND `country`=%s AND `asname`=%s AND `updated`=TRUE ", (asn, rir, country, asname))
   r = cursor.fetchall()
   if cursor.rowcount > 0:
