@@ -15,6 +15,9 @@ password=db_password)
 cursor = cnx.cursor()
 
 for line in ips:
+  if line == '':
+    continue
+
   (ip, asn, rir, country, asname) = line.split(';')
   print(ip + '...')
   cursor.execute('INSERT INTO `asinfo` (`asn`, `rir`, `country`, `asname`, `updated`, `updatedTime`) VALUES (%s, %s, %s, %s, TRUE, NOW())', (asn, rir, country, asname))
