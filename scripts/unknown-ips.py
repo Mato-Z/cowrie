@@ -6,10 +6,10 @@ user_name = ''
 database_name = ''
 db_password = ''
 
-print 'Loading IPs to update...'
+print('Loading IPs to update...')
 ips = open(ip_file_name, "r").readlines()
 
-print 'Connecting...'
+print('Connecting...')
 cnx = mysql.connector.connect(host=db_host, user=user_name, database=database_name,
 password=db_password)
 cursor = cnx.cursor()
