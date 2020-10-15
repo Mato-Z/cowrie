@@ -48,8 +48,8 @@ import cowrie.core.output
 import cowrie.python.logfile
 
 
-def random_string(l, charset=string.letters.encode()):
-    return b"".join(random.choice(charset) for i in range(l))
+def random_string(length, charset=string.letters.encode()):
+    return b"".join(random.choice(charset) for i in range(length))
 
 
 def make_messages():
@@ -127,9 +127,6 @@ def main():
 
 
 class Output(cowrie.core.output.Output):
-
-    def __init__(self):
-        cowrie.core.output.Output.__init__(self)
 
     def start(self):
         pass

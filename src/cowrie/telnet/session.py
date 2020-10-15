@@ -24,6 +24,8 @@ from cowrie.shell import pwd
 class HoneyPotTelnetSession(TelnetBootstrapProtocol):
     id = 0  # telnet can only have 1 simultaneous session, unlike SSH
     windowSize = [40, 80]
+    # to be populated by HoneyPotTelnetAuthProtocol after auth
+    transportId = None
 
     def __init__(self, username, server):
         self.username = username.decode()
@@ -34,7 +36,7 @@ class HoneyPotTelnetSession(TelnetBootstrapProtocol):
             self.uid = pwentry["pw_uid"]
             self.gid = pwentry["pw_gid"]
             self.home = pwentry["pw_dir"]
-        except Exception:
+        except KeyError:
             self.uid = 1001
             self.gid = 1001
             self.home = '/home'
@@ -54,11 +56,8 @@ class HoneyPotTelnetSession(TelnetBootstrapProtocol):
         # required because HoneyPotBaseProtocol relies on avatar.avatar.home
         self.avatar = self
 
-        # to be populated by HoneyPotTelnetAuthProtocol after auth
-        self.transportId = None
-
         # Do the delayed file system initialization
-        self.server.initFileSystem()
+        self.server.initFileSystem(self.home)
 
     def connectionMade(self):
         processprotocol = TelnetSessionProcessProtocol(self)
@@ -106,7 +105,7 @@ class TelnetSessionProcessProtocol(protocol.ProcessProtocol):
         self.session.write(data)
 
     def errReceived(self, err):
-        log.err("Error received: {}".format(err))
+        log.msg("Error received: {}".format(err))
         # EXTENDED_DATA_STDERR is from ssh, no equivalent in telnet?
         # self.session.writeExtended(connection.EXTENDED_DATA_STDERR, err)
 

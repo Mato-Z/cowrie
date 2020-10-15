@@ -29,12 +29,15 @@
 from __future__ import absolute_import, division
 
 import abc
-import datetime
 import re
 import socket
 import time
+from os import environ
 
-from cowrie.core.config import CONFIG
+from twisted.internet import reactor
+from twisted.logger import formatTime
+
+from cowrie.core.config import CowrieConfig
 
 # Events:
 #  cowrie.client.fingerprint
@@ -92,7 +95,16 @@ class Output(object):
             '.*SSHTransport,([0-9]+),[0-9a-f:.]+$')
         self.telnetRegex = re.compile(
             '.*TelnetTransport,([0-9]+),[0-9a-f:.]+$')
-        self.sensor = CONFIG.get('honeypot', 'sensor_name', fallback=socket.gethostname())
+        self.sensor = CowrieConfig().get('honeypot', 'sensor_name', fallback=socket.gethostname())
+
+        # use Z for UTC (Zulu) time, it's shorter.
+        if 'TZ' in environ and environ['TZ'] == 'UTC':
+            self.timeFormat = '%Y-%m-%dT%H:%M:%S.%fZ'
+        else:
+            self.timeFormat = '%Y-%m-%dT%H:%M:%S.%f%z'
+
+        # Event trigger so that stop() is called by the reactor when stopping
+        reactor.addSystemEventTrigger('before', 'shutdown', self.stop)
 
         self.start()
 
@@ -160,7 +172,7 @@ class Output(object):
         # Add ISO timestamp and sensor data
         if 'time' not in ev:
             ev['time'] = time.time()
-        ev['timestamp'] = datetime.datetime.utcfromtimestamp(ev['time']).isoformat() + 'Z'
+        ev['timestamp'] = formatTime(ev['time'], timeFormat=self.timeFormat)
 
         if 'format' in ev and ('message' not in ev or ev['message'] == ()):
             try:

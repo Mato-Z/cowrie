@@ -1,3 +1,46 @@
+
+Release 2.1.0
+=============
+* Deprecate Python 2.7. Still works but removed from testing suite and fixing 2.7 problems will no longer have priority.
+* Disable crashreporter
+* Updated ELK documentation and output plugin
+* `tee` command added. Updates to `cat`, `dd` and `wc`.
+* Fixed SSH compression issue with AsyncSSH client
+* AbuseIP output plugin.
+
+Release 2.0.1
+=============
+
+* 2019-10-31 Fix for exec commands when tty logging is disabled
+* 2019-10-31 Fix for print output to stdout for curl/wget
+* 2019-10-31 Fix for SQL to store full hostname (don't forget to update the database schema)
+* 2019-10-15 Slack link now at https://cowrie.org/slack
+* 2019-10-04 Subshell ((echo test)) evaluation now working
+
+Release 2.0.0
+=============
+
+* 2019-09-06 Crash reporter is enabled by default and will upload data on crashes to api.cowrie.org. This can be disabled in by setting `enabled=false` in `[output_crashreporter]`
+* 2019-09-05 Proxy functionality now active by @sgtpepperpt and GSoC2019
+* 2019-06-20 Move `auth_none` and `auth_keyboard_interactive_enabled` to [ssh] config section
+
+Release 1.6.0
+=============
+
+* 2019-03-31 New documentation theme
+* 2019-03-23 Greynoise output plugin (@mzfr)
+* 2019-03-19 direct-tcp forwarding now written to databases (@gborges)
+* 2019-03-19 Reverse DNS output plugin (@mzfr)
+* 2019-03-17 Shell emulation pipe upgrade (@nunonovais)
+* 2019-03-14 Shell emulation environment variables improved (@nunonovais)
+* 2019-03-14 SSH crypto parameters now configurable in config file (@msharma)
+* 2019-03-13 Disable keyboard-interactive authentication by default with option to enable
+* 2019-03-13 Added `wc`, `crontab`, `chpasswd` command (@nunonovais)
+* 2019-
+* 2019-03-07 Output of `ssh -V` now configurable in cowrie.cfg with ssh_version setting
+* 2019-03-07 Multiple timezone support in cowrie.cfg timezone directive. Default timezone is now UTC for both cowrie.log and cowrie.json
+* 2019-03-12 Handle multiple password prompt. Option to enable or disable keyboard interactive prompt.
+
 Release 1.5.3
 =============
 
@@ -6,7 +49,7 @@ Release 1.5.3
 * 2019-01-09 Documentation converted to ReStructuredText
 * 2018-12-04 Fixes for VT outut plugin to only submit new files
 
-Release 1.5.2 
+Release 1.5.2
 =============
 
 * 2018-11-19 Fix tftp exception and tftp test

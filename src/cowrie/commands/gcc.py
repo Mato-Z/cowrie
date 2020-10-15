@@ -10,7 +10,7 @@ import time
 
 from twisted.internet import reactor
 
-from cowrie.core.config import CONFIG
+from cowrie.core.config import CowrieConfig
 from cowrie.shell.command import HoneyPotCommand
 
 commands = {}
@@ -165,7 +165,7 @@ COLLECT_LTO_WRAPPER=/usr/lib/gcc/x86_64-linux-gnu/4.7/lto-wrapper
 Target: x86_64-linux-gnu
 Configured with: ../src/configure -v --with-pkgversion=\'Debian {}-5\' --with-bugurl=file:///usr/share/doc/gcc-{}/README.Bugs --enable-languages=c,c++,fortran,objc,obj-c++ --prefix=/usr --program-suffix=-{} --enable-shared --enable-multiarch --enable-linker-build-id --with-system-zlib --libexecdir=/usr/lib --without-included-gettext --enable-threads=posix --with-gxx-include-dir=/usr/include/c++/{} --libdir=/usr/lib --enable-nls --enable-clocale=gnu --enable-libstdcxx-debug --enable-objc-gc --with-arch-32=i586 --with-tune=generic --enable-checking=release --build=x86_64-linux-gnu --host=x86_64-linux-gnu --target=x86_64-linux-gnu
 Thread model: posix
-gcc version %s (Debian {}-5)""".format(version, version_short, version_short, version_short, version, version))  # noqa: E501
+gcc version {} (Debian {}-5)""".format(version, version_short, version_short, version_short, version, version))  # noqa: E501
 
         # Write
         self.write('{0}\n'.format(data))
@@ -179,7 +179,7 @@ gcc version %s (Debian {}-5)""".format(version, version_short, version_short, ve
                      self.protocol.getProtoTransport().transportId,
                      self.protocol.terminal.transport.session.id,
                      re.sub('[^A-Za-z0-9]', '_', outfile))
-        safeoutfile = os.path.join(CONFIG.get('honeypot', 'download_path'), tmp_fname)
+        safeoutfile = os.path.join(CowrieConfig().get('honeypot', 'download_path'), tmp_fname)
 
         # Data contains random garbage from an actual file, so when
         # catting the file, you'll see some 'real' compiled data

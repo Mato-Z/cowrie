@@ -105,7 +105,7 @@ class shlex:
         self.instream.close()
         (self.infile, self.instream, self.lineno) = self.filestack.popleft()
         if self.debug:
-            print('shlex: popping to {}, line %d'.format(self.instream, self.lineno))
+            print('shlex: popping to {}, line {}'.format(self.instream, self.lineno))
         self.state = ' '
 
     def get_token(self):
@@ -307,11 +307,14 @@ class shlex:
     def __iter__(self):
         return self
 
-    def next(self):
+    def __next__(self):
         token = self.get_token()
         if token == self.eof:
             raise StopIteration
         return token
+
+    # For Python 2.x
+    next = __next__
 
 
 def split(s, comments=False, posix=True):

@@ -11,6 +11,7 @@ dist/
 docs/_build
 build/
 log/
+.eggs/
 __pycache__/
 *.py[cod]
 *env/
@@ -20,3 +21,4 @@ _trial_temp
 .project
 .pydevproject
 .idea/
+.tox

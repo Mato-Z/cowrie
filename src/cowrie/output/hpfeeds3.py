@@ -13,7 +13,7 @@ from twisted.internet import endpoints, reactor, ssl
 from twisted.python import log
 
 import cowrie.core.output
-from cowrie.core.config import CONFIG
+from cowrie.core.config import CowrieConfig
 
 
 class Output(cowrie.core.output.Output):
@@ -26,25 +26,25 @@ class Output(cowrie.core.output.Output):
     def start(self):
         log.msg("WARNING: Beta version of new hpfeeds enabled. This will become hpfeeds in a future release.")
 
-        if CONFIG.has_option('output_hpfeeds', 'channel'):
-            self.channel = CONFIG.get('output_hpfeeds', 'channel')
+        if CowrieConfig().has_option('output_hpfeeds3', 'channel'):
+            self.channel = CowrieConfig().get('output_hpfeeds3', 'channel')
 
-        if CONFIG.has_option('output_hpfeeds', 'endpoint'):
-            endpoint = CONFIG.get('output_hpfeeds', 'endpoint')
+        if CowrieConfig().has_option('output_hpfeeds3', 'endpoint'):
+            endpoint = CowrieConfig().get('output_hpfeeds3', 'endpoint')
         else:
-            server = CONFIG.get('output_hpfeeds', 'server')
-            port = CONFIG.getint('output_hpfeeds', 'port')
+            server = CowrieConfig().get('output_hpfeeds3', 'server')
+            port = CowrieConfig().getint('output_hpfeeds3', 'port')
 
-            if CONFIG.has_option('output_hpfeeds', 'tlscert'):
-                with open(CONFIG.get('output_hpfeeds', 'tlscert')) as fp:
+            if CowrieConfig().has_option('output_hpfeeds3', 'tlscert'):
+                with open(CowrieConfig().get('output_hpfeeds3', 'tlscert')) as fp:
                     authority = ssl.Certificate.loadPEM(fp.read())
                 options = ssl.optionsForClientTLS(server, authority)
                 endpoint = endpoints.SSL4ClientEndpoint(reactor, server, port, options)
             else:
                 endpoint = endpoints.HostnameEndpoint(reactor, server, port)
 
-        ident = CONFIG.get('output_hpfeeds', 'identifier')
-        secret = CONFIG.get('output_hpfeeds', 'secret')
+        ident = CowrieConfig().get('output_hpfeeds3', 'identifier')
+        secret = CowrieConfig().get('output_hpfeeds3', 'secret')
 
         self.meta = {}
 
@@ -107,7 +107,7 @@ class Output(cowrie.core.output.Output):
         elif entry["eventid"] == 'cowrie.log.closed':
             # entry["ttylog"]
             with open(entry["ttylog"]) as ttylog:
-                self.meta[session]['ttylog'] = ttylog.read().encode('hex')
+                self.meta[session]['ttylog'] = ttylog.read().hex()
 
         elif entry["eventid"] == 'cowrie.session.closed':
             meta = self.meta.pop(session, None)

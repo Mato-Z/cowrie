@@ -6,7 +6,7 @@ import socket
 import struct
 import sys
 
-from cowrie.core.config import CONFIG
+from cowrie.core.config import CowrieConfig
 from cowrie.shell.command import HoneyPotCommand
 
 if sys.version_info > (3,):
@@ -25,6 +25,7 @@ def makeMask(n):
 def dottedQuadToNum(ip):
     """
     convert decimal dotted quad string to long integer
+    this will throw builtins.OSError on failure
     """
     return struct.unpack('I', socket.inet_aton(ip))[0]
 
@@ -72,12 +73,23 @@ usage: nc [-46bCDdhjklnrStUuvZz] [-I length] [-i interval] [-O length]
         host = args[0]
         port = args[1]
 
-        if not re.match(r'\d+', port):
+        if not re.match(r'^\d+$', port):
             self.errorWrite('nc: port number invalid: {}\n'.format(port))
             self.exit()
             return
 
-        address = dottedQuadToNum(host)
+        if re.match(r'^\d+$', host):
+            address = int(host)
+        elif re.match(r'^[\d\.]+$', host):
+            try:
+                address = dottedQuadToNum(host)
+            except OSError:
+                self.exit()
+                return
+        else:
+            # TODO: should do dns lookup
+            self.exit()
+            return
 
         for net in local_networks:
             if addressInNetwork(address, net):
@@ -86,14 +98,17 @@ usage: nc [-46bCDdhjklnrStUuvZz] [-I length] [-i interval] [-O length]
 
         out_addr = None
         try:
-            out_addr = (CONFIG.get('honeypot', 'out_addr'), 0)
+            out_addr = (CowrieConfig().get('honeypot', 'out_addr'), 0)
         except Exception:
             out_addr = ('0.0.0.0', 0)
 
         self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.s.bind(out_addr)
-        self.s.connect((host, int(port)))
-        self.recv_data()
+        try:
+            self.s.connect((host, int(port)))
+            self.recv_data()
+        except Exception:
+            self.exit()
 
     def recv_data(self):
         data = ''
@@ -110,7 +125,7 @@ usage: nc [-46bCDdhjklnrStUuvZz] [-I length] [-i interval] [-O length]
 
     def lineReceived(self, line):
         if hasattr(self, 's'):
-            self.s.send(line)
+            self.s.send(line.encode('utf8'))
 
     def handle_CTRL_C(self):
         self.write('^C\n')

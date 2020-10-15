@@ -5,10 +5,6 @@
 
 from __future__ import absolute_import, division
 
-import copy
-import pickle
-
-from cowrie.core.config import CONFIG
 from cowrie.shell import fs
 
 
@@ -22,9 +18,7 @@ class FakeServer:
         self.arch = 'linux-x64-lsb'
         self.hostname = "unitTest"
 
-        self.pckl = pickle.load(
-            open(CONFIG.get('honeypot', 'filesystem_file'), 'rb'))
-        self.fs = fs.HoneyPotFilesystem(copy.deepcopy(self.pckl), 'arch')
+        self.fs = fs.HoneyPotFilesystem(None, 'arch', '/root')
         self.process = None
 
 
@@ -57,3 +51,4 @@ class FakeAvatar:
         else:
             self.environ[
                 'PATH'] = '/usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games'
+        self.windowSize = [25, 80]

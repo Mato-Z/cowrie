@@ -13,7 +13,7 @@ import struct
 from twisted.python import log
 
 import cowrie.core.output
-from cowrie.core.config import CONFIG
+from cowrie.core.config import CowrieConfig
 
 try:
     buffer  # Python 2
@@ -98,6 +98,9 @@ class FeedUnpack(object):
     def next(self):
         return self.unpack()
 
+    def __next__(self):
+        return self.unpack()
+
     def feed(self, data):
         self.buf.extend(data)
 
@@ -156,7 +159,7 @@ class hpclient(object):
 
     def handle_established(self):
         if self.debug:
-            log.msg('hpclient established')
+            log.msg('hpfeeds: hpclient established')
         while self.state != 'GOTINFO':
             self.read()
 
@@ -175,7 +178,7 @@ class hpclient(object):
 
         if not d:
             if self.debug:
-                log.msg('hpclient connection closed?')
+                log.msg('hpfeeds: hpclient connection closed?')
             self.close()
             return
 
@@ -183,14 +186,14 @@ class hpclient(object):
         try:
             for opcode, data in self.unpacker:
                 if self.debug:
-                    log.msg('hpclient msg opcode {0:x} data {1}'.format(
+                    log.msg('hpfeeds: msg opcode {0:x} data {1}'.format(
                         opcode,
                         ''.join('{:02x}'.format(x) for x in data))
                     )
                 if opcode == OP_INFO:
                     name, rand = strunpack8(data)
                     if self.debug:
-                        log.msg('hpclient server name {0} rand {1}'.format(
+                        log.msg('hpfeeds: server name {0} rand {1}'.format(
                             name,
                             ''.join('{:02x}'.format(x) for x in rand))
                         )
@@ -202,21 +205,21 @@ class hpclient(object):
                     chan, data = strunpack8(data)
                     if self.debug:
                         log.msg(
-                            'publish to {0} by {1}: {2}'.format(chan, ident, ''.join('{:02x}'.format(x) for x in data)))
+                            'hpfeeds: publish to {0} by {1}: {2}'.format(
+                                chan, ident, ''.join('{:02x}'.format(x) for x in data)))
                 elif opcode == OP_ERROR:
-                    log.err('errormessage from server: {0}'.format(''.join('{:02x}'.format(x) for x in data)))
+                    log.msg('hpfeeds: errormessage from server: {0}'.format(''.join('{:02x}'.format(x) for x in data)))
                 else:
-                    log.err('unknown opcode message: {0:x}'.format(opcode))
+                    log.msg('hpfeeds: unknown opcode message: {0:x}'.format(opcode))
         except BadClient:
-            log.err('unpacker error, disconnecting.')
+            log.msg('hpfeeds: unpacker error, disconnecting.')
             self.close()
 
     def publish(self, channel, **kwargs):
         try:
             self.send(msgpublish(self.ident, channel, json.dumps(kwargs, default=set2json).encode('latin1')))
         except Exception as e:
-            log.err('connection to hpfriends lost: {0}'.format(e))
-            log.err('connecting')
+            log.msg('hpfeeds: connection to hpfriends lost: {0}, reconnecting'.format(e))
             self.connect()
             self.send(msgpublish(self.ident, channel, json.dumps(kwargs, default=set2json).encode('latin1')))
 
@@ -252,18 +255,13 @@ class Output(cowrie.core.output.Output):
     """
     Output plugin for HPFeeds
     """
-
-    def __init__(self):
-        log.msg("Early version of hpfeeds-output, untested!")
-        cowrie.core.output.Output.__init__(self)
-
     def start(self):
-
-        server = CONFIG.get('output_hpfeeds', 'server')
-        port = CONFIG.getint('output_hpfeeds', 'port')
-        ident = CONFIG.get('output_hpfeeds', 'identifier')
-        secret = CONFIG.get('output_hpfeeds', 'secret')
-        debug = CONFIG.getboolean('output_hpfeeds', 'debug')
+        log.msg("Early version of hpfeeds-output, untested!")
+        server = CowrieConfig().get('output_hpfeeds', 'server')
+        port = CowrieConfig().getint('output_hpfeeds', 'port')
+        ident = CowrieConfig().get('output_hpfeeds', 'identifier')
+        secret = CowrieConfig().get('output_hpfeeds', 'secret')
+        debug = CowrieConfig().getboolean('output_hpfeeds', 'debug')
         self.client = hpclient(server, port, ident, secret, debug)
         self.meta = {}
 
@@ -323,7 +321,7 @@ class Output(cowrie.core.output.Output):
         elif entry["eventid"] == 'cowrie.log.closed':
             # entry["ttylog"]
             with open(entry["ttylog"]) as ttylog:
-                self.meta[session]['ttylog'] = ttylog.read().encode('hex')
+                self.meta[session]['ttylog'] = ttylog.read().hex()
 
         elif entry["eventid"] == 'cowrie.session.closed':
             log.msg('publishing metadata to hpfeeds')

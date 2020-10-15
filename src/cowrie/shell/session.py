@@ -35,13 +35,17 @@ class SSHSessionForCowrieUser(object):
             'SHELL': '/bin/bash',
             'USER': self.username,
             'HOME': self.avatar.home,
-            'TMOUT': '1800'}
+            'TMOUT': '1800',
+            'UID': str(self.uid)}
         if self.uid == 0:
             self.environ['PATH'] = '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
         else:
             self.environ['PATH'] = '/usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games'
 
-        self.server.initFileSystem()
+        self.server.initFileSystem(self.avatar.home)
+
+        if self.avatar.temporary:
+            self.server.fs.mkdir(self.avatar.home, self.uid, self.gid, 4096, 755)
 
     def openShell(self, processprotocol):
         self.protocol = insults.LoggingServerProtocol(
@@ -50,11 +54,11 @@ class SSHSessionForCowrieUser(object):
         processprotocol.makeConnection(session.wrapProtocol(self.protocol))
 
     def getPty(self, terminal, windowSize, attrs):
-        self.environ['TERM'] = terminal
+        self.environ['TERM'] = terminal.decode("utf-8")
         log.msg(
             eventid='cowrie.client.size',
-            width=windowSize[0],
-            height=windowSize[1],
+            width=windowSize[1],
+            height=windowSize[0],
             format='Terminal Size: %(width)s %(height)s'
         )
         self.windowSize = windowSize

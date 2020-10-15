@@ -12,6 +12,7 @@ from twisted.internet import error
 from twisted.python import failure, log
 from twisted.python.compat import iterbytes
 
+from cowrie.core.config import CowrieConfig
 from cowrie.shell import fs
 
 # From Python3.6 we get the new shlex version
@@ -23,11 +24,15 @@ else:
 
 class HoneyPotShell(object):
 
-    def __init__(self, protocol, interactive=True):
+    def __init__(self, protocol, interactive=True, redirect=False):
         self.protocol = protocol
         self.interactive = interactive
+        self.redirect = redirect  # to support output redirection
         self.cmdpending = []
-        self.environ = protocol.environ
+        self.environ = copy.copy(protocol.environ)
+        if hasattr(protocol.user, 'windowSize'):
+            self.environ['COLUMNS'] = str(protocol.user.windowSize[1])
+            self.environ['LINES'] = str(protocol.user.windowSize[0])
         self.lexer = None
         self.showPrompt()
 
@@ -35,8 +40,10 @@ class HoneyPotShell(object):
         log.msg(eventid='cowrie.command.input', input=line, format='CMD: %(input)s')
         self.lexer = shlex.shlex(instream=line, punctuation_chars=True, posix=True)
         # Add these special characters that are not in the default lexer
-        self.lexer.wordchars += '@%{}=$:+^,'
+        self.lexer.wordchars += '@%{}=$:+^,()'
+
         tokens = []
+
         while True:
             try:
                 tok = self.lexer.get_token()
@@ -45,15 +52,7 @@ class HoneyPotShell(object):
                 if tok == self.lexer.eof:
                     if tokens:
                         self.cmdpending.append((tokens))
-                        tokens = []
                     break
-
-                # Ignore parentheses
-                tok_len = len(tok)
-                tok = tok.strip('(')
-                tok = tok.strip(')')
-                if len(tok) != tok_len and tok == '':
-                    continue
 
                 # For now, treat && and || same as ;, just execute without checking return code
                 if tok == '&&' or tok == '||':
@@ -76,7 +75,13 @@ class HoneyPotShell(object):
                         break
                 elif tok == '$?':
                     tok = "0"
-                elif tok[0] == '$':
+                elif tok[0] == '(':
+                    cmd = self.do_command_substitution(tok)
+                    tokens = cmd.split()
+                    continue
+                elif '$(' in tok:
+                    tok = self.do_command_substitution(tok)
+                elif tok.startswith('${'):
                     envRex = re.compile(r'^\$([_a-zA-Z0-9]+)$')
                     envSearch = envRex.search(tok)
                     if envSearch is not None:
@@ -85,6 +90,7 @@ class HoneyPotShell(object):
                             tok = self.environ[envMatch]
                         else:
                             continue
+                elif tok.startswith('$'):
                     envRex = re.compile(r'^\${([_a-zA-Z0-9]+)}$')
                     envSearch = envRex.search(tok)
                     if envSearch is not None:
@@ -93,6 +99,7 @@ class HoneyPotShell(object):
                             tok = self.environ[envMatch]
                         else:
                             continue
+
                 tokens.append(tok)
             except Exception as e:
                 self.protocol.terminal.write(
@@ -102,10 +109,70 @@ class HoneyPotShell(object):
                 self.cmdpending = []
                 self.showPrompt()
                 return
+
         if self.cmdpending:
             self.runCommand()
         else:
             self.showPrompt()
+
+    def do_command_substitution(self, start_tok):
+        if start_tok[0] == '(':
+            # start parsing the (...) expression
+            dollar_expr = start_tok
+            pos = 1
+        else:
+            # split the first token to prefix and $(... part
+            dollar_pos = start_tok.index('$(')
+            result = start_tok[:dollar_pos]
+            dollar_expr = start_tok[dollar_pos:]
+            pos = 2
+        opening_count = 1
+        closing_count = 0
+
+        # parse the remaining tokens and execute $(...) parts when found
+        while opening_count > closing_count:
+            if dollar_expr[pos:pos + 2] == '$(':
+                opening_count += 1
+                pos += 2
+            elif dollar_expr[pos] == ')':
+                closing_count += 1
+                if opening_count == closing_count:
+
+                    if dollar_expr[0] == '(':
+                        # return the command in () without executing it
+                        result = dollar_expr[1:pos]
+                    else:
+                        # execute the command in $() and retrieve the output
+                        cmd = dollar_expr[2:pos]
+                        # instantiate new shell with redirect output
+                        self.protocol.cmdstack.append(HoneyPotShell(self.protocol, interactive=False, redirect=True))
+                        # call lineReceived method that indicates that we have some commands to parse
+                        self.protocol.cmdstack[-1].lineReceived(cmd)
+                        # remove the shell
+                        res = self.protocol.cmdstack.pop()
+                        result += res.protocol.pp.redirected_data.decode()[:-1]
+
+                    if pos < len(dollar_expr) - 1:
+                        dollar_expr = dollar_expr[pos + 1:]
+                        if '$(' in dollar_expr:
+                            dollar_pos = dollar_expr.index('$(')
+                            result += dollar_expr[:dollar_pos]
+                            dollar_expr = dollar_expr[dollar_pos:]
+                            opening_count = 1
+                            closing_count = 0
+                            pos = 1
+                        else:
+                            result += dollar_expr
+                pos += 1
+            else:
+                if opening_count > closing_count and pos == len(dollar_expr) - 1:
+                    tok = self.lexer.get_token()
+                    dollar_expr = dollar_expr + ' ' + tok
+                elif opening_count == closing_count:
+                    result += dollar_expr[pos]
+                pos += 1
+
+        return result
 
     def runCommand(self):
         pp = None
@@ -138,17 +205,20 @@ class HoneyPotShell(object):
             return parsed_arguments
 
         if not self.cmdpending:
-            if self.interactive:
-                self.showPrompt()
-            else:
-                # when commands passed to a shell via PIPE, we spawn a HoneyPotShell in none interactive mode
-                # if there are another shells on stack (cmdstack), let's just exit our new shell
-                # else close connection
-                if len(self.protocol.cmdstack) == 1:
-                    ret = failure.Failure(error.ProcessDone(status=""))
-                    self.protocol.terminal.transport.processEnded(ret)
+            if self.protocol.pp.next_command is None:  # command dont have pipe(s)
+                if self.interactive:
+                    self.showPrompt()
                 else:
-                    return
+                    # when commands passed to a shell via PIPE, we spawn a HoneyPotShell in none interactive mode
+                    # if there are another shells on stack (cmdstack), let's just exit our new shell
+                    # else close connection
+                    if len(self.protocol.cmdstack) == 1:
+                        ret = failure.Failure(error.ProcessDone(status=""))
+                        self.protocol.terminal.transport.processEnded(ret)
+                    else:
+                        return
+            else:
+                pass  # command with pipes
             return
 
         cmdAndArgs = self.cmdpending.pop(0)
@@ -202,15 +272,19 @@ class HoneyPotShell(object):
             if cmdclass:
                 log.msg(input=cmd['command'] + " " + ' '.join(cmd['rargs']), format='Command found: %(input)s')
                 if index == len(cmd_array) - 1:
-                    lastpp = StdOutStdErrEmulationProtocol(self.protocol, cmdclass, cmd['rargs'], None, None)
+                    lastpp = StdOutStdErrEmulationProtocol(self.protocol, cmdclass, cmd['rargs'], None, None,
+                                                           self.redirect)
                     pp = lastpp
                 else:
-                    pp = StdOutStdErrEmulationProtocol(self.protocol, cmdclass, cmd['rargs'], None, lastpp)
+                    pp = StdOutStdErrEmulationProtocol(self.protocol, cmdclass, cmd['rargs'], None, lastpp,
+                                                       self.redirect)
                     lastpp = pp
             else:
                 log.msg(eventid='cowrie.command.failed', input=' '.join(cmd2), format='Command not found: %(input)s')
                 self.protocol.terminal.write('-bash: {}: command not found\n'.format(cmd['command']).encode('utf8'))
                 runOrPrompt()
+                pp = None  # Got a error. Don't run any piped commands
+                break
         if pp:
             self.protocol.call_command(pp, cmdclass, *cmd_array[0]['rargs'])
 
@@ -223,21 +297,26 @@ class HoneyPotShell(object):
         if not self.interactive:
             return
 
-        cwd = self.protocol.cwd
-        homelen = len(self.protocol.user.avatar.home)
-        if cwd == self.protocol.user.avatar.home:
-            cwd = '~'
-        elif len(cwd) > (homelen + 1) and \
-                cwd[:(homelen + 1)] == self.protocol.user.avatar.home + '/':
-            cwd = '~' + cwd[homelen:]
-
-        # Example: [root@svr03 ~]#   (More of a "CentOS" feel)
-        # Example: root@svr03:~#     (More of a "Debian" feel)
-        prompt = '{0}@{1}:{2}'.format(self.protocol.user.username, self.protocol.hostname, cwd)
-        if not self.protocol.user.uid:
-            prompt += '# '  # "Root" user
+        prompt = ''
+        if CowrieConfig().has_option('honeypot', 'prompt'):
+            prompt = CowrieConfig().get('honeypot', 'prompt')
+            prompt += ' '
         else:
-            prompt += '$ '  # "Non-Root" user
+            cwd = self.protocol.cwd
+            homelen = len(self.protocol.user.avatar.home)
+            if cwd == self.protocol.user.avatar.home:
+                cwd = '~'
+            elif len(cwd) > (homelen + 1) and \
+                    cwd[:(homelen + 1)] == self.protocol.user.avatar.home + '/':
+                cwd = '~' + cwd[homelen:]
+
+            # Example: [root@svr03 ~]#   (More of a "CentOS" feel)
+            # Example: root@svr03:~#     (More of a "Debian" feel)
+            prompt = '{0}@{1}:{2}'.format(self.protocol.user.username, self.protocol.hostname, cwd)
+            if not self.protocol.user.uid:
+                prompt += '# '  # "Root" user
+            else:
+                prompt += '$ '  # "Non-Root" user
 
         self.protocol.terminal.write(prompt.encode('ascii'))
         self.protocol.ps = (prompt.encode('ascii'), b'> ')
@@ -351,14 +430,16 @@ class StdOutStdErrEmulationProtocol(object):
     """
     __author__ = 'davegermiquet'
 
-    def __init__(self, protocol, cmd, cmdargs, input_data, next_command):
+    def __init__(self, protocol, cmd, cmdargs, input_data, next_command, redirect=False):
         self.cmd = cmd
         self.cmdargs = cmdargs
         self.input_data = input_data
         self.next_command = next_command
         self.data = b""
+        self.redirected_data = b""
         self.err_data = b""
         self.protocol = protocol
+        self.redirect = redirect  # dont send to terminal if enabled
 
     def connectionMade(self):
 
@@ -373,15 +454,18 @@ class StdOutStdErrEmulationProtocol(object):
         self.data = data
 
         if not self.next_command:
-            if self.protocol is not None and self.protocol.terminal is not None:
-                self.protocol.terminal.write(data)
+            if not self.redirect:
+                if self.protocol is not None and self.protocol.terminal is not None:
+                    self.protocol.terminal.write(data)
+                else:
+                    log.msg("Connection was probably lost. Could not write to terminal")
             else:
-                log.msg("Connection was probably lost. Could not write to terminal")
+                self.redirected_data += self.data
         else:
-            self.next_command.input_data = self.data
-            npcmd = self.next_command.cmd
-            npcmdargs = self.next_command.cmdargs
-            self.protocol.call_command(self.next_command, npcmd, *npcmdargs)
+            if self.next_command.input_data is None:
+                self.next_command.input_data = self.data
+            else:
+                self.next_command.input_data += self.data
 
     def insert_command(self, command):
         """
@@ -404,7 +488,7 @@ class StdOutStdErrEmulationProtocol(object):
         """
 
         if self.next_command:
-            self.next_command.input_data = self.data
+            # self.next_command.input_data = self.data
             npcmd = self.next_command.cmd
             npcmdargs = self.next_command.cmdargs
             self.protocol.call_command(self.next_command, npcmd, *npcmdargs)

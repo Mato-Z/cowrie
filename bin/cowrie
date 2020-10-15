@@ -22,8 +22,18 @@ DEFAULT_VIRTUAL_ENV=cowrie-env
 
 first_time_use() {
     echo
-    echo "Join the Cowrie community at: http://bit.ly/cowrieslack"
+    echo "Join the Cowrie community at: https://www.cowrie.org/slack/"
     echo
+}
+
+python_version_warning() {
+    echo "version check"
+    if python -V 2>&1 | grep -q  '^Python 2.'; then
+        echo
+        echo "DEPRECATION: Python 2.7 reached the end of its life on January 1st, 2020."
+        echo "Please upgrade your Python as Python 2.7 won't be maintained after that date. Cowrie has dropped support for Python 2.7."
+        echo
+    fi
 }
 
 migrate_userdb() {
@@ -100,6 +110,16 @@ cowrie_start() {
         echo 2>&1 "Using default Python virtual environment \"$VIRTUAL_ENV\""
     else
         echo 2>&1 "Not using Python virtual environment"
+    fi
+
+    python_version_warning
+
+    # Automatically check if the authbind is enabled or not
+    authfile="/etc/authbind/byport/22"
+    if [ -z ${AUTHBIND_ENABLED} ] && [ -x "$authfile" ] && command -v authbind >/dev/null; then
+        AUTHBIND_ENABLED=yes
+    else
+        AUTHBIND_ENABLED=no
     fi
 
     echo "Starting cowrie: [twistd ${TWISTEDARGS} cowrie ${COWRIEARGS}]..."

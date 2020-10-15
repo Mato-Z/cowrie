@@ -13,7 +13,7 @@ from cowrie.shell import protocol
 from cowrie.test import fake_server, fake_transport
 
 os.environ["HONEYPOT_DATA_PATH"] = "../data"
-os.environ["HONEYPOT_FILESYSTEM_FILE"] = "../share/cowrie/fs.pickle"
+os.environ["SHELL_FILESYSTEM"] = "../share/cowrie/fs.pickle"
 
 PROMPT = b"root@unitTest:~# "
 
@@ -79,7 +79,7 @@ class ShellBaseCommandsTests(unittest.TestCase):
 
     def test_date_command(self):
         self.proto.lineReceived(b'date\n')
-        self.assertRegexpMatches(
+        self.assertRegex(
             self.tr.value(),
             b'[A-Za-z][A-Za-z][A-Za-z] [A-Za-z][A-Za-z][A-Za-z] [0-9][0-9] [0-9][0-9]:[0-9][0-9]:[0-9][0-9] UTC [0-9][0-9][0-9][0-9]\n' + PROMPT)  # noqa: E501
 
@@ -105,7 +105,10 @@ class ShellBaseCommandsTests(unittest.TestCase):
 
     def test_set_command(self):
         self.proto.lineReceived(b'set\n')
-        self.assertEquals(self.tr.value(), PROMPT)
+
+        self.assertEquals(
+            self.tr.value(),
+            b'COLUMNS=80\nHOME=/root\nLINES=25\nLOGNAME=root\nPATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\nTMOUT=1800\nUSER=root\n' + PROMPT)  # noqa: E501
 
     def test_unset_command(self):
         self.proto.lineReceived(b'unset\n')

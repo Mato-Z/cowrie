@@ -10,19 +10,26 @@ Welcome to Cowrie's documentation!
    :maxdepth: 2
    :caption: Contents:
 
-   index.rst
    README.rst
+   FAQ.rst
    LICENSE.rst
    INSTALL.rst
    CHANGELOG.rst
    CONTRIBUTING.rst
+   PROXY.rst
+   HONEYFS.rst
+   BACKEND_POOL.rst
+   SNAPSHOTS.rst
+   docker/README.rst
    elk/README.rst
    graylog/README.rst
    kippo-graph/README.rst
+   sentinel/README.rst
    splunk/README.rst
    sql/README.rst
    squid/README.rst
    supervisor/README.rst
+   systemd/README.rst
 
 Indices and tables
 ==================

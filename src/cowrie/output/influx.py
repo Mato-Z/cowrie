@@ -6,63 +6,51 @@ from influxdb.exceptions import InfluxDBClientError
 from twisted.python import log
 
 import cowrie.core.output
-from cowrie.core.config import CONFIG
+from cowrie.core.config import CowrieConfig
 
 
 class Output(cowrie.core.output.Output):
-
-    def __init__(self):
-        cowrie.core.output.Output.__init__(self)
-
+    """
+    influx output
+    """
     def start(self):
-        try:
-            host = CONFIG.get('output_influx', 'host')
-        except Exception:
-            host = ''
-
-        try:
-            port = CONFIG.getint('output_influx', 'port')
-        except Exception:
-            port = 8086
-
-        try:
-            ssl = CONFIG.getboolean('output_influx', 'ssl')
-        except Exception:
-            ssl = False
+        host = CowrieConfig().get('output_influx', 'host', fallback='')
+        port = CowrieConfig().getint('output_influx', 'port', fallback=8086)
+        ssl = CowrieConfig().getboolean('output_influx', 'ssl', fallback=False)
 
         self.client = None
         try:
             self.client = InfluxDBClient(host=host, port=port, ssl=ssl, verify_ssl=ssl)
         except InfluxDBClientError as e:
-            log.err("output_influx: I/O error({0}): '{1}'".format(
-                e.errno, e.strerror))
+            log.msg("output_influx: I/O error({0}): '{1}'".format(
+                e.code, e.message))
             return
 
         if self.client is None:
-            log.err("output_influx: cannot instantiate client!")
+            log.msg("output_influx: cannot instantiate client!")
             return
 
-        if (CONFIG.has_option('output_influx', 'username') and
-                CONFIG.has_option('output_influx', 'password')):
-            username = CONFIG.get('output_influx', 'username')
-            password = CONFIG.get('output_influx', 'password', raw=True)
+        if (CowrieConfig().has_option('output_influx', 'username') and
+                CowrieConfig().has_option('output_influx', 'password')):
+            username = CowrieConfig().get('output_influx', 'username')
+            password = CowrieConfig().get('output_influx', 'password', raw=True)
             self.client.switch_user(username, password)
 
         try:
-            dbname = CONFIG.get('output_influx', 'database_name')
+            dbname = CowrieConfig().get('output_influx', 'database_name')
         except Exception:
             dbname = 'cowrie'
 
         retention_policy_duration_default = '12w'
         retention_policy_name = dbname + "_retention_policy"
 
-        if CONFIG.has_option('output_influx', 'retention_policy_duration'):
-            retention_policy_duration = CONFIG.get(
+        if CowrieConfig().has_option('output_influx', 'retention_policy_duration'):
+            retention_policy_duration = CowrieConfig().get(
                 'output_influx', 'retention_policy_duration')
 
             match = re.search(r'^\d+[dhmw]{1}$', retention_policy_duration)
             if not match:
-                log.err(("output_influx: invalid retention policy."
+                log.msg(("output_influx: invalid retention policy."
                          "Using default '{}'..").format(
                     retention_policy_duration))
                 retention_policy_duration = retention_policy_duration_default
@@ -98,7 +86,7 @@ class Output(cowrie.core.output.Output):
 
     def write(self, entry):
         if self.client is None:
-            log.err("output_influx: client object is not instantiated")
+            log.msg("output_influx: client object is not instantiated")
             return
 
         # event id
@@ -196,7 +184,7 @@ class Output(cowrie.core.output.Output):
             # are not implemented
         else:
             # other events should be handled
-            log.err(
+            log.msg(
                 "output_influx: event '{}' not handled. Skipping..".format(
                     eventid))
             return
@@ -204,5 +192,5 @@ class Output(cowrie.core.output.Output):
         result = self.client.write_points([m])
 
         if not result:
-            log.err("output_influx: error when writing '{}' measurement"
+            log.msg("output_influx: error when writing '{}' measurement"
                     "in the db.".format(eventid))

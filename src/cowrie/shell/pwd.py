@@ -28,7 +28,12 @@
 
 from __future__ import absolute_import, division
 
-from cowrie.core.config import CONFIG
+from binascii import crc32
+from random import randint, seed
+
+from twisted.python import log
+
+from cowrie.core.config import CowrieConfig
 
 
 class Passwd(object):
@@ -37,9 +42,9 @@ class Passwd(object):
     /etc/passwd. Note that contrary to the name, it does not handle any
     passwords.
     """
+    passwd_file = '%s/etc/passwd' % (CowrieConfig().get('honeypot', 'contents_path'),)
 
     def __init__(self):
-        self.passwd_file = '%s/etc/passwd' % (CONFIG.get('honeypot', 'contents_path'),)
         self.load()
 
     def load(self):
@@ -58,6 +63,10 @@ class Passwd(object):
                     continue
 
                 if line.startswith('#'):
+                    continue
+
+                if len(line.split(':')) != 7:
+                    log.msg("Error parsing line `"+line+"` in <honeyfs>/etc/passwd")
                     continue
 
                 (pw_name, pw_passwd, pw_uid, pw_gid, pw_gecos, pw_dir,
@@ -108,15 +117,35 @@ class Passwd(object):
                 return _
         raise KeyError("getpwuid(): uid not found in passwd file: " + str(uid))
 
+    def setpwentry(self, name):
+        """
+        If the user is not in /etc/passwd, creates a new user entry for the session
+        """
+
+        # ensure consistent uid and gid
+        seed_id = crc32(name.encode("utf-8"))
+        seed(seed_id)
+
+        e = {}
+        e["pw_name"] = name
+        e["pw_passwd"] = "x"
+        e["pw_gecos"] = 0
+        e["pw_dir"] = "/home/" + name
+        e["pw_shell"] = "/bin/bash"
+        e["pw_uid"] = randint(1500, 10000)
+        e["pw_gid"] = e["pw_uid"]
+        self.passwd.append(e)
+        return e
+
 
 class Group(object):
     """
     This class contains code to handle the groups and their properties in
     /etc/group.
     """
+    group_file = '%s/etc/group' % (CowrieConfig().get('honeypot', 'contents_path'),)
 
     def __init__(self):
-        self.group_file = '%s/etc/group' % (CONFIG.get('honeypot', 'contents_path'),)
         self.load()
 
     def load(self):

@@ -10,7 +10,7 @@ from __future__ import absolute_import, division
 from twisted.conch.ssh import forwarding
 from twisted.python import log
 
-from cowrie.core.config import CONFIG
+from cowrie.core.config import CowrieConfig
 
 
 def cowrieOpenConnectForwardingClient(remoteWindow, remoteMaxPacket, data, avatar):
@@ -26,10 +26,10 @@ def cowrieOpenConnectForwardingClient(remoteWindow, remoteMaxPacket, data, avata
             src_ip=origHP[0], src_port=origHP[1])
 
     # Forward redirect
-    redirectEnabled = CONFIG.getboolean('ssh', 'forward_redirect', fallback=False)
+    redirectEnabled = CowrieConfig().getboolean('ssh', 'forward_redirect', fallback=False)
     if redirectEnabled:
         redirects = {}
-        items = CONFIG.items('ssh')
+        items = CowrieConfig().items('ssh')
         for i in items:
             if i[0].startswith('forward_redirect_'):
                 destPort = i[0].split('_')[-1]
@@ -46,10 +46,10 @@ def cowrieOpenConnectForwardingClient(remoteWindow, remoteMaxPacket, data, avata
             return SSHConnectForwardingChannel(remoteHPNew, remoteWindow=remoteWindow, remoteMaxPacket=remoteMaxPacket)
 
     # TCP tunnel
-    tunnelEnabled = CONFIG.getboolean('ssh', 'forward_tunnel', fallback=False)
+    tunnelEnabled = CowrieConfig().getboolean('ssh', 'forward_tunnel', fallback=False)
     if tunnelEnabled:
         tunnels = {}
-        items = CONFIG.items('ssh')
+        items = CowrieConfig().items('ssh')
         for i in items:
             if i[0].startswith('forward_tunnel_'):
                 destPort = i[0].split('_')[-1]
@@ -92,8 +92,8 @@ class FakeForwardingChannel(forwarding.SSHConnectForwardingChannel):
 
     def dataReceived(self, data):
         log.msg(eventid='cowrie.direct-tcpip.data',
-                format='discarded direct-tcp forward request to %(dst_ip)s:%(dst_port)s with data %(data)s',
-                dst_ip=self.hostport[0], dst_port=self.hostport[1], data=repr(data))
+                format='discarded direct-tcp forward request %(id)s to %(dst_ip)s:%(dst_port)s with data %(data)s',
+                dst_ip=self.hostport[0], dst_port=self.hostport[1], data=repr(data), id=self.id)
         self._close("Connection refused")
 
 
@@ -116,8 +116,8 @@ class TCPTunnelForwardingChannel(forwarding.SSHConnectForwardingChannel):
         Modifies the original to send a TCP tunnel request via the CONNECT method
         """
         forwarding.SSHConnectForwardingChannel.channelOpen(self, specificData)
-        dst = self.dstport[0] + b':' + str(self.dstport[1])
-        connect_hdr = b'CONNECT ' + dst + b" HTTP/1.1\r\n\r\n"
+        dst = self.dstport[0] + ':' + str(self.dstport[1])
+        connect_hdr = b'CONNECT ' + dst.encode('ascii') + b' HTTP/1.1\r\n\r\n'
         forwarding.SSHConnectForwardingChannel.dataReceived(self, connect_hdr)
 
     def dataReceived(self, data):
@@ -128,20 +128,20 @@ class TCPTunnelForwardingChannel(forwarding.SSHConnectForwardingChannel):
 
     def write(self, data):
         """
-        Modifies the original to stip off the TCP tunnel response
+        Modifies the original to strip off the TCP tunnel response
         """
         if not self.tunnel_established and data[:4].lower() == b'http':
             # Check proxy response code
             try:
-                res_code = int(data.split(' ')[1], 10)
+                res_code = int(data.split(b' ')[1], 10)
             except ValueError:
-                log.err('Failed to parse TCP tunnel response code')
+                log.err("Failed to parse TCP tunnel response code")
                 self._close("Connection refused")
             if res_code != 200:
-                log.err('Unexpected response code: {}'.format(res_code))
+                log.err("Unexpected response code: {}".format(res_code))
                 self._close("Connection refused")
             # Strip off rest of packet
-            eop = data.find("\r\n\r\n")
+            eop = data.find(b'\r\n\r\n')
             if eop > -1:
                 data = data[eop + 4:]
             # This only happens once when the channel is opened
